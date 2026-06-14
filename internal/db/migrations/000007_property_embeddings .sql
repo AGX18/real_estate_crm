@@ -1,11 +1,11 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE EXTENSION IF NOT EXISTS vector;
-CREATE TABLE property_embeddings (
+CREATE TABLE IF NOT EXISTS property_embeddings (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     property_id BIGINT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    embedding   vector(1536),
+    embedding   vector(1024),
     content     TEXT NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -17,5 +17,5 @@ WITH (lists = 100);
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE property_embeddings;
+DROP TABLE IF EXISTS property_embeddings;
 -- +goose StatementEnd

@@ -32,3 +32,5 @@ main
 # OS X generated file
 .DS_Store
 
+# Ignore sqlc genrated files
+internal/db/sqlc
