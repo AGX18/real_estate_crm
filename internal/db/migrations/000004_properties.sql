@@ -17,7 +17,7 @@ CREATE TABLE properties (
 
 
 
--- goose Down
+-- +goose Down
 -- +goose StatementBegin
 DROP TABLE properties;
 DROP TYPE IF EXISTS property_status;

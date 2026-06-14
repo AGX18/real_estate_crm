@@ -10,7 +10,7 @@ CREATE TABLE lead_properties (
 -- +goose StatementEnd
 
 
--- goose Down
+-- +goose Down
 -- +goose StatementBegin
 DROP TABLE lead_properties;
 -- +goose StatementEnd

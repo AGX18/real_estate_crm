@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- +goose StatementEnd
 
 
--- goose Down
+-- +goose Down
 -- +goose StatementBegin
 DROP TABLE users;
 DROP TYPE IF EXISTS user_role;

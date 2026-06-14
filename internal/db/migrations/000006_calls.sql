@@ -17,7 +17,7 @@ CREATE TABLE calls (
 -- +goose StatementEnd
 
 
--- goose Down
+-- +goose Down
 -- +goose StatementBegin
 DROP TABLE calls;
 DROP TYPE IF EXISTS call_sentiment;
