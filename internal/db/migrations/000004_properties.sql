@@ -19,6 +19,6 @@ CREATE TABLE properties (
 
 -- goose Down
 -- +goose StatementBegin
-DROP TABLE units;
-DROP TYPE IF EXISTS unit_status;
+DROP TABLE properties;
+DROP TYPE IF EXISTS property_status;
 -- +goose StatementEnd
