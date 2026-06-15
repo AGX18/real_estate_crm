@@ -15,12 +15,7 @@ const testTenantID = "550e8400-e29b-41d4-a716-446655440000"
 
 func newBrokerTestRouter(s *Server) http.Handler {
 	r := chi.NewRouter()
-	r.Post("/tenants/{tenant_id}/brokers", s.CreateBroker)
-	r.Get("/tenants/{tenant_id}/brokers", s.ListBrokers)
-	r.Get("/tenants/{tenant_id}/brokers/email/{email}", s.GetBrokerByEmail)
-	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.GetBroker)
-	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.UpdateBrokerRole)
-	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.DeleteBroker)
+	s.registerBrokerRoutes(r)
 	return r
 }
 

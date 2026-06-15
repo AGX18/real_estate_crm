@@ -13,20 +13,20 @@ import (
 )
 
 func newTestServer(q db.Querier) *Server {
+	tenantService := tenants.NewService(q)
+	brokerService := brokers.NewService(q)
 	s := &Server{
-		tenantService: tenants.NewService(q),
-		brokerService: brokers.NewService(q),
+		tenantService: tenantService,
+		brokerService: brokerService,
+		tenantHandler: tenants.NewHandler(tenantService),
+		brokerHandler: brokers.NewHandler(brokerService),
 	}
 	return s
 }
 
 func newTestRouter(s *Server) http.Handler {
 	r := chi.NewRouter()
-	r.Post("/tenants", s.CreateTenant)
-	r.Get("/tenants", s.ListTenants)
-	r.Get("/tenants/{id}", s.GetTenant)
-	r.Patch("/tenants/{id}/status", s.UpdateTenantStatus)
-	r.Delete("/tenants/{id}", s.DeleteTenant)
+	s.registerTenantRoutes(r)
 	return r
 }
 func TestGetTenant(t *testing.T) {
@@ -51,7 +51,7 @@ func TestListTenants(t *testing.T) {
 	s := newTestServer(mock)
 	req := httptest.NewRequest(http.MethodGet, "/tenants", nil)
 	w := httptest.NewRecorder()
-	s.ListTenants(w, req)
+	s.tenantHandler.List(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected %d got %d", http.StatusOK, w.Code)
 	}

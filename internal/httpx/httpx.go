@@ -1,4 +1,4 @@
-package server
+package httpx
 
 import (
 	"encoding/json"
@@ -8,22 +8,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func writeJSON(w http.ResponseWriter, status int, data any) {
+func WriteJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+func WriteError(w http.ResponseWriter, status int, message string) {
+	WriteJSON(w, status, map[string]string{"error": message})
 }
 
-func parseUUID(id string) (pgtype.UUID, error) {
+func ParseUUID(id string) (pgtype.UUID, error) {
 	var uuid pgtype.UUID
 	err := uuid.Scan(id)
 	return uuid, err
 }
 
-func parseInt64(id string) (int64, error) {
+func ParseInt64(id string) (int64, error) {
 	return strconv.ParseInt(id, 10, 64)
 }

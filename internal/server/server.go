@@ -20,6 +20,8 @@ type Server struct {
 	port          int
 	tenantService *tenants.Service
 	brokerService *brokers.Service
+	tenantHandler *tenants.Handler
+	brokerHandler *brokers.Handler
 	db            database.Service
 	logger        *slog.Logger
 }
@@ -37,11 +39,16 @@ func NewServer() (*http.Server, error) {
 	}
 	queries := db.New(dbService.GetDB())
 
+	tenantService := tenants.NewService(queries)
+	brokerService := brokers.NewService(queries)
+
 	NewServer := &Server{
 		port:          cfg.Port,
 		db:            dbService,
-		tenantService: tenants.NewService(queries),
-		brokerService: brokers.NewService(queries),
+		tenantService: tenantService,
+		brokerService: brokerService,
+		tenantHandler: tenants.NewHandler(tenantService),
+		brokerHandler: brokers.NewHandler(brokerService),
 		logger:        logger.Log,
 	}
 

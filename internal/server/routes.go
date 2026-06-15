@@ -33,20 +33,20 @@ func (s *Server) RegisterRoutes() http.Handler {
 }
 
 func (s *Server) registerTenantRoutes(r chi.Router) {
-	r.Post("/tenants", s.CreateTenant)
-	r.Get("/tenants", s.ListTenants)
-	r.Get("/tenants/{id}", s.GetTenant)
-	r.Patch("/tenants/{id}/status", s.UpdateTenantStatus)
-	r.Delete("/tenants/{id}", s.DeleteTenant)
+	r.Post("/tenants", s.tenantHandler.Create)
+	r.Get("/tenants", s.tenantHandler.List)
+	r.Get("/tenants/{id}", s.tenantHandler.Get)
+	r.Patch("/tenants/{id}/status", s.tenantHandler.UpdateStatus)
+	r.Delete("/tenants/{id}", s.tenantHandler.Delete)
 }
 
 func (s *Server) registerBrokerRoutes(r chi.Router) {
-	r.Post("/tenants/{tenant_id}/brokers", s.CreateBroker)
-	r.Get("/tenants/{tenant_id}/brokers", s.ListBrokers)
-	r.Get("/tenants/{tenant_id}/brokers/email/{email}", s.GetBrokerByEmail)
-	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.GetBroker)
-	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.UpdateBrokerRole)
-	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.DeleteBroker)
+	r.Post("/tenants/{tenant_id}/brokers", s.brokerHandler.Create)
+	r.Get("/tenants/{tenant_id}/brokers", s.brokerHandler.List)
+	r.Get("/tenants/{tenant_id}/brokers/email/{email}", s.brokerHandler.GetByEmail)
+	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Get)
+	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.brokerHandler.UpdateRole)
+	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Delete)
 }
 
 func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
