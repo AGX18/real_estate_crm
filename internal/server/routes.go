@@ -51,7 +51,6 @@ func (s *Server) registerTenantRoutes(r chi.Router) {
 func (s *Server) registerBrokerRoutes(r chi.Router) {
 	r.Post("/tenants/{tenant_id}/brokers", s.brokerHandler.Create)
 	r.Get("/tenants/{tenant_id}/brokers", s.brokerHandler.List)
-	r.Get("/tenants/{tenant_id}/brokers/email/{email}", s.brokerHandler.GetByEmail)
 	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Get)
 	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.brokerHandler.UpdateRole)
 	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Delete)
@@ -71,6 +70,7 @@ func (s *Server) registerLeadRoutes(r chi.Router) {
 func (s *Server) registerPropertyRoutes(r chi.Router) {
 	r.Post("/tenants/{tenant_id}/properties", s.propertyHandler.Create)
 	r.Post("/tenants/{tenant_id}/properties/bulk", s.propertyHandler.CreateMany)
+	r.Post("/tenants/{tenant_id}/properties/import", s.propertyHandler.Import)
 	r.Get("/tenants/{tenant_id}/properties", s.propertyHandler.List)
 	r.Post("/tenants/{tenant_id}/properties/search", s.propertyHandler.Search)
 	r.Get("/tenants/{tenant_id}/properties/{property_id}", s.propertyHandler.Get)

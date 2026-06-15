@@ -1,8 +1,10 @@
 package properties
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -14,7 +16,10 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
-const embeddingDimensions = 1024
+const (
+	embeddingDimensions = 1536
+	maxImportFileSize   = 10 << 20
+)
 
 type Handler struct {
 	service *Service
@@ -37,6 +42,10 @@ type propertyRequest struct {
 type searchRequest struct {
 	Embedding []float32 `json:"embedding"`
 	Limit     int32     `json:"limit"`
+}
+
+type importRequest struct {
+	Properties []propertyRequest `json:"properties"`
 }
 
 func NewHandler(service *Service) *Handler {
@@ -94,6 +103,52 @@ func (h *Handler) CreateMany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.createMany(w, r, tenantID, body)
+}
+
+func (h *Handler) Import(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := parseTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportFileSize)
+	if err := r.ParseMultipartForm(maxImportFileSize); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "file is required")
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, maxImportFileSize+1))
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "failed to read file")
+		return
+	}
+	if len(data) > maxImportFileSize {
+		httpx.WriteError(w, http.StatusBadRequest, "file is too large")
+		return
+	}
+
+	properties, err := decodeImportProperties(data)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid properties json")
+		return
+	}
+	if len(properties) == 0 {
+		httpx.WriteError(w, http.StatusBadRequest, "properties are required")
+		return
+	}
+
+	h.createMany(w, r, tenantID, properties)
+}
+
+func (h *Handler) createMany(w http.ResponseWriter, r *http.Request, tenantID pgtype.UUID, body []propertyRequest) {
 	properties := make([]CreateParams, 0, len(body))
 	for _, item := range body {
 		params, content, err := createParams(tenantID, item)
@@ -410,4 +465,17 @@ func validateEmbedding(embedding []float32) error {
 		return fmt.Errorf("embedding must contain %d dimensions", embeddingDimensions)
 	}
 	return nil
+}
+
+func decodeImportProperties(data []byte) ([]propertyRequest, error) {
+	var properties []propertyRequest
+	if err := json.NewDecoder(bytes.NewReader(data)).Decode(&properties); err == nil {
+		return properties, nil
+	}
+
+	var wrapper importRequest
+	if err := json.NewDecoder(bytes.NewReader(data)).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+	return wrapper.Properties, nil
 }

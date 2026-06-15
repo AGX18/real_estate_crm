@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -73,6 +74,66 @@ func TestCreatePropertiesBulk(t *testing.T) {
 	}
 }
 
+func TestImportPropertiesArrayFile(t *testing.T) {
+	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 2, Bathrooms: 2}}
+	s := newTestServer(mock)
+	r := newPropertyTestRouter(s)
+
+	body, contentType := propertiesImportBody(t, "properties.json", `[
+		{
+			"description":"Apartment one",
+			"price":"2500000.00",
+			"location":"New Cairo",
+			"area_sqm":"120",
+			"type":"شقة",
+			"city":"Cairo",
+			"governorate":"Cairo",
+			"bedrooms":2,
+			"bathrooms":2,
+			"status":"available"
+		}
+	]`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected %d got %d", http.StatusCreated, w.Code)
+	}
+}
+
+func TestImportPropertiesWrappedFile(t *testing.T) {
+	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 2, Bathrooms: 2}}
+	s := newTestServer(mock)
+	r := newPropertyTestRouter(s)
+
+	body, contentType := propertiesImportBody(t, "properties.json", `{
+		"properties": [
+			{
+				"description":"Apartment one",
+				"price":"2500000.00",
+				"location":"New Cairo",
+				"area_sqm":"120",
+				"type":"شقة",
+				"city":"Cairo",
+				"governorate":"Cairo",
+				"bedrooms":2,
+				"bathrooms":2,
+				"status":"available"
+			}
+		]
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected %d got %d", http.StatusCreated, w.Code)
+	}
+}
+
 func TestListProperties(t *testing.T) {
 	mock := &mockQueries{
 		properties: []db.Property{
@@ -90,6 +151,24 @@ func TestListProperties(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected %d got %d", http.StatusOK, w.Code)
 	}
+}
+
+func propertiesImportBody(t *testing.T, filename string, content string) (*bytes.Buffer, string) {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	file, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	if _, err := file.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write form file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+	return body, writer.FormDataContentType()
 }
 
 func TestSearchProperties(t *testing.T) {
@@ -112,7 +191,7 @@ func TestSearchProperties(t *testing.T) {
 }
 
 func testEmbeddingJSON() string {
-	values := make([]string, 1024)
+	values := make([]string, 1536)
 	for i := range values {
 		values[i] = "0.1"
 	}
