@@ -10,6 +10,7 @@ type Config struct {
 	Port     int
 	LogLevel string
 	Database Database
+	Auth     Auth
 }
 
 type Database struct {
@@ -19,6 +20,10 @@ type Database struct {
 	Name     string
 	User     string
 	Password string
+}
+
+type Auth struct {
+	TokenSecret string
 }
 
 func Load() (Config, error) {
@@ -38,9 +43,15 @@ func Load() (Config, error) {
 			User:     os.Getenv("BLUEPRINT_DB_USERNAME"),
 			Password: os.Getenv("BLUEPRINT_DB_PASSWORD"),
 		},
+		Auth: Auth{
+			TokenSecret: getEnv("JWT_SECRET", "local-development-secret"),
+		},
 	}
 
 	if err := cfg.Database.validate(); err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Auth.validate(); err != nil {
 		return Config{}, err
 	}
 
@@ -72,6 +83,13 @@ func (d Database) validate() error {
 		if value == "" {
 			return fmt.Errorf("missing required database config: %s", name)
 		}
+	}
+	return nil
+}
+
+func (a Auth) validate() error {
+	if a.TokenSecret == "" {
+		return fmt.Errorf("missing required auth config: JWT_SECRET")
 	}
 	return nil
 }

@@ -24,7 +24,7 @@ func TestCreateBroker(t *testing.T) {
 	s := newTestServer(mock)
 	r := newBrokerTestRouter(s)
 
-	body := bytes.NewBufferString(`{"username":"agent","email":"agent@example.com","password_hash":"hash","role":"user"}`)
+	body := bytes.NewBufferString(`{"username":"agent","email":"agent@example.com","password":"secret","role":"user"}`)
 	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/brokers", body)
 	w := httptest.NewRecorder()
 

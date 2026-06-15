@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"real_estate_crm/internal/auth"
 	"real_estate_crm/internal/brokers"
 	db "real_estate_crm/internal/db/sqlc"
 	"real_estate_crm/internal/tenants"
@@ -15,11 +16,14 @@ import (
 func newTestServer(q db.Querier) *Server {
 	tenantService := tenants.NewService(q)
 	brokerService := brokers.NewService(q)
+	authService := auth.NewService(q, auth.NewTokenManager("test-secret"))
 	s := &Server{
 		tenantService: tenantService,
 		brokerService: brokerService,
+		authService:   authService,
 		tenantHandler: tenants.NewHandler(tenantService),
 		brokerHandler: brokers.NewHandler(brokerService),
+		authHandler:   auth.NewHandler(authService),
 	}
 	return s
 }

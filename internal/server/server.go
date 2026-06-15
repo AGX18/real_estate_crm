@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
+	"real_estate_crm/internal/auth"
 	"real_estate_crm/internal/brokers"
 	"real_estate_crm/internal/config"
 	"real_estate_crm/internal/database"
@@ -20,8 +21,10 @@ type Server struct {
 	port          int
 	tenantService *tenants.Service
 	brokerService *brokers.Service
+	authService   *auth.Service
 	tenantHandler *tenants.Handler
 	brokerHandler *brokers.Handler
+	authHandler   *auth.Handler
 	db            database.Service
 	logger        *slog.Logger
 }
@@ -41,14 +44,17 @@ func NewServer() (*http.Server, error) {
 
 	tenantService := tenants.NewService(queries)
 	brokerService := brokers.NewService(queries)
+	authService := auth.NewService(queries, auth.NewTokenManager(cfg.Auth.TokenSecret))
 
 	NewServer := &Server{
 		port:          cfg.Port,
 		db:            dbService,
 		tenantService: tenantService,
 		brokerService: brokerService,
+		authService:   authService,
 		tenantHandler: tenants.NewHandler(tenantService),
 		brokerHandler: brokers.NewHandler(brokerService),
+		authHandler:   auth.NewHandler(authService),
 		logger:        logger.Log,
 	}
 

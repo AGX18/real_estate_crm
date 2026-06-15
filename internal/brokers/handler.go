@@ -8,10 +8,18 @@ import (
 	"real_estate_crm/internal/httpx"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Handler struct {
 	service *Service
+}
+
+type createRequest struct {
+	Username string  `json:"username"`
+	Email    string  `json:"email"`
+	Password string  `json:"password"`
+	Role     db.Role `json:"role"`
 }
 
 func NewHandler(service *Service) *Handler {
@@ -25,14 +33,32 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params db.CreateBrokerParams
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+	var body createRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	params.TenantID = tenantID
+	if body.Username == "" || body.Email == "" || body.Password == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "username, email and password are required")
+		return
+	}
+	if body.Role == "" {
+		body.Role = db.RoleUser
+	}
 
-	broker, err := h.service.Create(r.Context(), params)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create broker")
+		return
+	}
+
+	broker, err := h.service.Create(r.Context(), db.CreateBrokerParams{
+		TenantID:     tenantID,
+		Username:     body.Username,
+		Email:        body.Email,
+		PasswordHash: string(passwordHash),
+		Role:         body.Role,
+	})
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "failed to create broker")
 		return

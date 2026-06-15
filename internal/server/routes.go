@@ -26,10 +26,15 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.Get("/health", s.healthHandler)
 
+	s.registerAuthRoutes(r)
 	s.registerTenantRoutes(r)
 	s.registerBrokerRoutes(r)
 
 	return r
+}
+
+func (s *Server) registerAuthRoutes(r chi.Router) {
+	r.Post("/tenants/{tenant_id}/login", s.authHandler.Login)
 }
 
 func (s *Server) registerTenantRoutes(r chi.Router) {
