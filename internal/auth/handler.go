@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"real_estate_crm/internal/httpx"
+	"github.com/AGX18/real_estate_crm/internal/httpx"
 
 	"github.com/go-chi/chi/v5"
 )

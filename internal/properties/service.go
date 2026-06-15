@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	db "real_estate_crm/internal/db/sqlc"
-	"real_estate_crm/internal/embeddings"
-	"real_estate_crm/internal/store"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
+	"github.com/AGX18/real_estate_crm/internal/embeddings"
+	"github.com/AGX18/real_estate_crm/internal/store"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgvector/pgvector-go"

@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"real_estate_crm/internal/logger"
-	"real_estate_crm/internal/server"
+	"github.com/AGX18/real_estate_crm/internal/logger"
+	"github.com/AGX18/real_estate_crm/internal/server"
 )
 
 func gracefulShutdown(apiServer *http.Server, done chan bool) {

@@ -3,7 +3,7 @@ package brokers
 import (
 	"context"
 
-	db "real_estate_crm/internal/db/sqlc"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )

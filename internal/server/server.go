@@ -8,17 +8,17 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
-	"real_estate_crm/internal/auth"
-	"real_estate_crm/internal/brokers"
-	"real_estate_crm/internal/config"
-	"real_estate_crm/internal/database"
-	"real_estate_crm/internal/embeddings"
-	"real_estate_crm/internal/leads"
-	"real_estate_crm/internal/logger"
-	"real_estate_crm/internal/properties"
-	appstore "real_estate_crm/internal/store"
-	"real_estate_crm/internal/tenants"
-	"real_estate_crm/internal/voice"
+	"github.com/AGX18/real_estate_crm/internal/auth"
+	"github.com/AGX18/real_estate_crm/internal/brokers"
+	"github.com/AGX18/real_estate_crm/internal/config"
+	"github.com/AGX18/real_estate_crm/internal/database"
+	"github.com/AGX18/real_estate_crm/internal/embeddings"
+	"github.com/AGX18/real_estate_crm/internal/leads"
+	"github.com/AGX18/real_estate_crm/internal/logger"
+	"github.com/AGX18/real_estate_crm/internal/properties"
+	appstore "github.com/AGX18/real_estate_crm/internal/store"
+	"github.com/AGX18/real_estate_crm/internal/tenants"
+	"github.com/AGX18/real_estate_crm/internal/voice"
 )
 
 type Server struct {

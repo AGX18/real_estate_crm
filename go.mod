@@ -1,4 +1,4 @@
-module real_estate_crm
+module github.com/AGX18/real_estate_crm
 
 go 1.26.1
 

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	db "real_estate_crm/internal/db/sqlc"
-	"real_estate_crm/internal/properties"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
+	"github.com/AGX18/real_estate_crm/internal/properties"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"

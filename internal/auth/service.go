@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	db "real_estate_crm/internal/db/sqlc"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"

@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"real_estate_crm/internal/auth"
-	db "real_estate_crm/internal/db/sqlc"
+	"github.com/AGX18/real_estate_crm/internal/auth"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"

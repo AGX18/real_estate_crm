@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	db "real_estate_crm/internal/db/sqlc"
-	"real_estate_crm/internal/httpx"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
+	"github.com/AGX18/real_estate_crm/internal/httpx"
 
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/crypto/bcrypt"

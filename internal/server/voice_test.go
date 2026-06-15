@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	db "real_estate_crm/internal/db/sqlc"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"

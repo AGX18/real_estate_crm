@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"real_estate_crm/internal/config"
-	"real_estate_crm/internal/db/migrations"
+	"github.com/AGX18/real_estate_crm/internal/config"
+	"github.com/AGX18/real_estate_crm/internal/db/migrations"
 
 	"github.com/jackc/pgx/v5/stdlib"
 

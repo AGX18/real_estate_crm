@@ -5,13 +5,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"real_estate_crm/internal/auth"
-	"real_estate_crm/internal/brokers"
-	db "real_estate_crm/internal/db/sqlc"
-	"real_estate_crm/internal/leads"
-	"real_estate_crm/internal/properties"
-	"real_estate_crm/internal/tenants"
-	"real_estate_crm/internal/voice"
+	"github.com/AGX18/real_estate_crm/internal/auth"
+	"github.com/AGX18/real_estate_crm/internal/brokers"
+	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
+	"github.com/AGX18/real_estate_crm/internal/leads"
+	"github.com/AGX18/real_estate_crm/internal/properties"
+	"github.com/AGX18/real_estate_crm/internal/tenants"
+	"github.com/AGX18/real_estate_crm/internal/voice"
 
 	"github.com/go-chi/chi/v5"
 )
