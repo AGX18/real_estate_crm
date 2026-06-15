@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TYPE property_status AS ENUM ('available', 'sold', 'rented');
 CREATE TYPE property_type AS ENUM ('شاليه', 'شقة', 'استوديو', 'دوبلكس', 'بنتهاوس', 'فيلا', 'توين هاوس', 'تاون هاوس');
-CREATE TABLE properties (
+CREATE TABLE IF NOT EXISTS properties (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     description TEXT,

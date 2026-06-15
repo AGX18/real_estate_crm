@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION vector;
 CREATE TABLE IF NOT EXISTS property_embeddings (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   UUID NOT NULL REFERENCES tenants(id),

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"real_estate_crm/internal/logger"
 	"real_estate_crm/internal/server"
 )
 
@@ -46,7 +47,7 @@ func main() {
 
 	// Run graceful shutdown in a separate goroutine
 	go gracefulShutdown(server, done)
-
+	logger.Log.Info("server started", "port", 8080)
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		panic(fmt.Sprintf("http server error: %s", err))

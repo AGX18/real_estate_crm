@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TYPE lead_status AS ENUM ('Follow_Up', 'qualified', 'closed', 'unqualified');
-CREATE TABLE leads (
+CREATE TABLE IF NOT EXISTS leads (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     phone       TEXT NOT NULL CHECK (phone ~ '^\+?[0-9]{7,15}$'),
