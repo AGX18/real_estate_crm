@@ -2,13 +2,16 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"real_estate_crm/internal/auth"
 	db "real_estate_crm/internal/db/sqlc"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -43,6 +46,30 @@ func TestLogin(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected %d got %d", http.StatusOK, w.Code)
+	}
+
+	var result auth.LoginResult
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if result.Token == "" {
+		t.Fatal("expected token in login response")
+	}
+	claims := &auth.Claims{}
+	token, err := jwt.ParseWithClaims(result.Token, claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte("test-secret"), nil
+	})
+	if err != nil || !token.Valid {
+		t.Fatalf("expected valid jwt, token valid=%v err=%v", token.Valid, err)
+	}
+	if claims.BrokerID != 1 {
+		t.Fatalf("expected broker id claim 1 got %d", claims.BrokerID)
+	}
+	if claims.Email != "agent@example.com" {
+		t.Fatalf("expected email claim agent@example.com got %q", claims.Email)
+	}
+	if claims.Role != db.RoleUser {
+		t.Fatalf("expected role claim user got %q", claims.Role)
 	}
 }
 

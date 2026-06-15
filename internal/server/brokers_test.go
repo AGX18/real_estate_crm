@@ -9,6 +9,7 @@ import (
 	db "real_estate_crm/internal/db/sqlc"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const testTenantID = "550e8400-e29b-41d4-a716-446655440000"
@@ -31,6 +32,15 @@ func TestCreateBroker(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected %d got %d", http.StatusCreated, w.Code)
+	}
+	if mock.createBrokerArg.PasswordHash == "" {
+		t.Fatal("expected password hash to be stored")
+	}
+	if mock.createBrokerArg.PasswordHash == "secret" {
+		t.Fatal("expected stored password to be hashed, not plaintext")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(mock.createBrokerArg.PasswordHash), []byte("secret")); err != nil {
+		t.Fatalf("expected password hash to match submitted password: %v", err)
 	}
 }
 

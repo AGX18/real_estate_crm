@@ -45,7 +45,7 @@ func TestCreateCallCreatesLead(t *testing.T) {
 			"called_at":"2026-06-07T16:58:02.541134"
 		},
 		"timeline":[
-			{"step":1,"text":"هل ممكن التجمع الخامس؟","hesitation":false,"intent":"general_question","dominant_emotion":"neutral","confidence":0.9,"sentiment":"neutral","sentiment_score":0.99}
+			{"step":1,"text":"هل ممكن التجمع الخامس؟","hesitation":false,"intent":"general_question","dominant_emotion":"neutral","confidence":NaN,"sentiment":"neutral","sentiment_score":NaN}
 		],
 		"turns":[
 			{"role":"user","text":"هل ممكن التجمع الخامس؟","timestamp":"2026-06-07T16:58:02.541284"},
@@ -57,7 +57,25 @@ func TestCreateCallCreatesLead(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
-		t.Errorf("expected %d got %d", http.StatusCreated, w.Code)
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if mock.createLeadArg.Phone != "0101813355540" {
+		t.Fatalf("expected extracted normalized phone got %q", mock.createLeadArg.Phone)
+	}
+	if mock.createLeadArg.Status.LeadStatus != db.LeadStatusFollowUp {
+		t.Fatalf("expected callback to map to follow_up got %q", mock.createLeadArg.Status.LeadStatus)
+	}
+	if !mock.createLeadArg.Description.Valid || !bytes.Contains([]byte(mock.createLeadArg.Description.String), []byte("التجمع الخامس")) {
+		t.Fatalf("expected lead description to include qualification/summary, got %q", mock.createLeadArg.Description.String)
+	}
+	if mock.createCallArg.Outcome.CallOutcome != db.CallOutcomeFollowUp {
+		t.Fatalf("expected call outcome follow_up got %q", mock.createCallArg.Outcome.CallOutcome)
+	}
+	if !mock.createCallArg.Transcript.Valid || !bytes.Contains([]byte(mock.createCallArg.Transcript.String), []byte("010-181-335-5540")) {
+		t.Fatalf("expected transcript to include useful turn text, got %q", mock.createCallArg.Transcript.String)
+	}
+	if bytes.Contains([]byte(mock.createCallArg.Details.String), []byte("confidence")) {
+		t.Fatalf("expected details to ignore confidence fields, got %q", mock.createCallArg.Details.String)
 	}
 }
 
@@ -92,6 +110,18 @@ func TestCreateCallUpdatesExistingLead(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
-		t.Errorf("expected %d got %d", http.StatusCreated, w.Code)
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if mock.updateLeadArg.Phone != "+201001234567" {
+		t.Fatalf("expected existing lead to be updated with summary phone, got %q", mock.updateLeadArg.Phone)
+	}
+	if mock.updateLeadArg.Status.LeadStatus != db.LeadStatusQualified {
+		t.Fatalf("expected qualified status got %q", mock.updateLeadArg.Status.LeadStatus)
+	}
+	if mock.createCallArg.Outcome.CallOutcome != db.CallOutcomeQualified {
+		t.Fatalf("expected qualified outcome got %q", mock.createCallArg.Outcome.CallOutcome)
+	}
+	if mock.createCallArg.DurationSecs.Int32 != 120 || !mock.createCallArg.DurationSecs.Valid {
+		t.Fatalf("expected duration 120 got %+v", mock.createCallArg.DurationSecs)
 	}
 }

@@ -8,19 +8,28 @@ import (
 )
 
 type mockQueries struct {
-	tenant                db.Tenant
-	tenants               []db.Tenant
-	broker                db.Broker
-	brokers               []db.Broker
-	lead                  db.Lead
-	leads                 []db.Lead
-	call                  db.Call
-	property              db.Property
-	properties            []db.Property
-	propertyEmbedding     db.PropertyEmbedding
-	propertySearchResults []db.SearchPropertyEmbeddingsRow
-	leadByPhoneErr        error
-	err                   error
+	tenant                       db.Tenant
+	tenants                      []db.Tenant
+	broker                       db.Broker
+	brokers                      []db.Broker
+	lead                         db.Lead
+	leads                        []db.Lead
+	call                         db.Call
+	property                     db.Property
+	properties                   []db.Property
+	propertyEmbedding            db.PropertyEmbedding
+	propertySearchResults        []db.SearchPropertyEmbeddingsRow
+	createBrokerArg              db.CreateBrokerParams
+	getBrokerByEmailArg          db.GetBrokerByEmailParams
+	createLeadArg                db.CreateLeadParams
+	updateLeadArg                db.UpdateLeadParams
+	createCallArg                db.CreateCallParams
+	createPropertyArg            db.CreatePropertyParams
+	createPropertyEmbeddingArg   db.CreatePropertyEmbeddingParams
+	createPropertyEmbeddingCalls int
+	searchPropertyEmbeddingsArg  db.SearchPropertyEmbeddingsParams
+	leadByPhoneErr               error
+	err                          error
 }
 
 // Tenants
@@ -45,21 +54,27 @@ func (m *mockQueries) AddLeadProperty(ctx context.Context, arg db.AddLeadPropert
 	return nil
 }
 func (m *mockQueries) CreateBroker(ctx context.Context, arg db.CreateBrokerParams) (db.Broker, error) {
+	m.createBrokerArg = arg
 	return m.broker, m.err
 }
 func (m *mockQueries) CreateCall(ctx context.Context, arg db.CreateCallParams) (db.Call, error) {
+	m.createCallArg = arg
 	return m.call, m.err
 }
 func (m *mockQueries) CreateLead(ctx context.Context, arg db.CreateLeadParams) (db.Lead, error) {
+	m.createLeadArg = arg
 	return m.lead, m.err
 }
 func (m *mockQueries) CreateProperties(ctx context.Context, arg []db.CreatePropertiesParams) (int64, error) {
 	return int64(len(arg)), m.err
 }
 func (m *mockQueries) CreateProperty(ctx context.Context, arg db.CreatePropertyParams) (db.Property, error) {
+	m.createPropertyArg = arg
 	return m.property, m.err
 }
 func (m *mockQueries) CreatePropertyEmbedding(ctx context.Context, arg db.CreatePropertyEmbeddingParams) (db.PropertyEmbedding, error) {
+	m.createPropertyEmbeddingArg = arg
+	m.createPropertyEmbeddingCalls++
 	return m.propertyEmbedding, m.err
 }
 func (m *mockQueries) DeleteBroker(ctx context.Context, arg db.DeleteBrokerParams) error {
@@ -74,6 +89,7 @@ func (m *mockQueries) DeletePropertyEmbedding(ctx context.Context, arg db.Delete
 	return m.err
 }
 func (m *mockQueries) GetBrokerByEmail(ctx context.Context, arg db.GetBrokerByEmailParams) (db.Broker, error) {
+	m.getBrokerByEmailArg = arg
 	return m.broker, m.err
 }
 func (m *mockQueries) GetBrokerByID(ctx context.Context, arg db.GetBrokerByIDParams) (db.Broker, error) {
@@ -128,6 +144,7 @@ func (m *mockQueries) RemoveLeadProperty(ctx context.Context, arg db.RemoveLeadP
 	return nil
 }
 func (m *mockQueries) SearchPropertyEmbeddings(ctx context.Context, arg db.SearchPropertyEmbeddingsParams) ([]db.SearchPropertyEmbeddingsRow, error) {
+	m.searchPropertyEmbeddingsArg = arg
 	return m.propertySearchResults, m.err
 }
 func (m *mockQueries) UpdateBrokerRole(ctx context.Context, arg db.UpdateBrokerRoleParams) (db.Broker, error) {
@@ -137,6 +154,7 @@ func (m *mockQueries) UpdateCall(ctx context.Context, arg db.UpdateCallParams) (
 	return db.Call{}, nil
 }
 func (m *mockQueries) UpdateLead(ctx context.Context, arg db.UpdateLeadParams) (db.Lead, error) {
+	m.updateLeadArg = arg
 	return m.lead, m.err
 }
 func (m *mockQueries) UpdateLeadDescription(ctx context.Context, arg db.UpdateLeadDescriptionParams) (db.Lead, error) {
