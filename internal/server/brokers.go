@@ -23,7 +23,7 @@ func (s *Server) CreateBroker(w http.ResponseWriter, r *http.Request) {
 	}
 	params.TenantID = tenantID
 
-	broker, err := s.queries.CreateBroker(r.Context(), params)
+	broker, err := s.brokerService.Create(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create broker")
 		return
@@ -45,7 +45,7 @@ func (s *Server) GetBroker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broker, err := s.queries.GetBrokerByID(r.Context(), db.GetBrokerByIDParams{
+	broker, err := s.brokerService.Get(r.Context(), db.GetBrokerByIDParams{
 		ID:       brokerID,
 		TenantID: tenantID,
 	})
@@ -70,7 +70,7 @@ func (s *Server) GetBrokerByEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broker, err := s.queries.GetBrokerByEmail(r.Context(), db.GetBrokerByEmailParams{
+	broker, err := s.brokerService.GetByEmail(r.Context(), db.GetBrokerByEmailParams{
 		Email:    email,
 		TenantID: tenantID,
 	})
@@ -89,7 +89,7 @@ func (s *Server) ListBrokers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	brokers, err := s.queries.ListBrokers(r.Context(), tenantID)
+	brokers, err := s.brokerService.List(r.Context(), tenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch brokers")
 		return
@@ -119,7 +119,7 @@ func (s *Server) UpdateBrokerRole(w http.ResponseWriter, r *http.Request) {
 	params.ID = brokerID
 	params.TenantID = tenantID
 
-	broker, err := s.queries.UpdateBrokerRole(r.Context(), params)
+	broker, err := s.brokerService.UpdateRole(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update broker")
 		return
@@ -141,7 +141,7 @@ func (s *Server) DeleteBroker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.queries.DeleteBroker(r.Context(), db.DeleteBrokerParams{
+	err = s.brokerService.Delete(r.Context(), db.DeleteBrokerParams{
 		ID:       brokerID,
 		TenantID: tenantID,
 	})

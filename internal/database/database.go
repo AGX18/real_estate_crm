@@ -3,11 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
 	"time"
 
+	"real_estate_crm/internal/config"
 	"real_estate_crm/internal/db/migrations"
 
 	"github.com/jackc/pgx/v5/stdlib"
@@ -29,33 +28,27 @@ type service struct {
 }
 
 var (
-	database   = os.Getenv("BLUEPRINT_DB_DATABASE")
-	password   = os.Getenv("BLUEPRINT_DB_PASSWORD")
-	username   = os.Getenv("BLUEPRINT_DB_USERNAME")
-	port       = os.Getenv("BLUEPRINT_DB_PORT")
-	host       = os.Getenv("BLUEPRINT_DB_HOST")
 	dbInstance *service
 )
 
-func New(logger *slog.Logger) Service {
+func New(logger *slog.Logger, cfg config.Database) (Service, error) {
 	if dbInstance != nil {
-		return dbInstance
+		return dbInstance, nil
 	}
 
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		username, password, host, port, database)
+		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
 	var pool *pgxpool.Pool
 	var err error
-	db_url := os.Getenv("DATABASE_URL")
-	if db_url != "" {
-		pool, err = pgxpool.New(context.Background(), db_url)
+	if cfg.URL != "" {
+		pool, err = pgxpool.New(context.Background(), cfg.URL)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 	} else {
 		pool, err = pgxpool.New(context.Background(), connStr)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 	}
 
@@ -64,21 +57,17 @@ func New(logger *slog.Logger) Service {
 	goose.SetBaseFS(migrations.FS)
 
 	if err := goose.SetDialect("postgres"); err != nil {
-		panic(err)
+		return nil, err
 	}
 	sqlDB := stdlib.OpenDBFromPool(pool)
 
 	if err := goose.Up(sqlDB, "."); err != nil {
 		logger.Error("Failed to migrate", "error", err.Error())
-		panic(err)
+		return nil, err
 	}
 
 	dbInstance = &service{db: pool, logger: logger}
-	return dbInstance
-}
-
-func migrate() {
-
+	return dbInstance, nil
 }
 
 func (s *service) GetDB() *pgxpool.Pool {
@@ -104,6 +93,5 @@ func (s *service) Health() map[string]string {
 }
 
 func (s *service) Close() {
-	log.Printf("Disconnected from database: %s", database)
 	s.db.Close()
 }

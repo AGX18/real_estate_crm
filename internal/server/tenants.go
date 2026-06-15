@@ -16,7 +16,7 @@ func (s *Server) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenant, err := s.queries.CreateTenant(r.Context(), params)
+	tenant, err := s.tenantService.Create(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create tenant")
 		return
@@ -32,7 +32,7 @@ func (s *Server) GetTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenant, err := s.queries.GetTenant(r.Context(), id)
+	tenant, err := s.tenantService.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "tenant not found")
 		return
@@ -42,7 +42,7 @@ func (s *Server) GetTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListTenants(w http.ResponseWriter, r *http.Request) {
-	tenants, err := s.queries.ListTenants(r.Context())
+	tenants, err := s.tenantService.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch tenants")
 		return
@@ -65,7 +65,7 @@ func (s *Server) UpdateTenantStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	params.ID = id
 
-	tenant, err := s.queries.UpdateTenantStatus(r.Context(), params)
+	tenant, err := s.tenantService.UpdateStatus(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update tenant")
 		return
@@ -80,7 +80,7 @@ func (s *Server) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	err = s.queries.DeleteTenant(r.Context(), id)
+	err = s.tenantService.Delete(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete tenant")
 		return

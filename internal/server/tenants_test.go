@@ -5,13 +5,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"real_estate_crm/internal/brokers"
 	db "real_estate_crm/internal/db/sqlc"
+	"real_estate_crm/internal/tenants"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func newTestServer(q db.Querier) *Server {
-	s := &Server{queries: q}
+	s := &Server{
+		tenantService: tenants.NewService(q),
+		brokerService: brokers.NewService(q),
+	}
 	return s
 }
 

@@ -40,15 +40,18 @@ func gracefulShutdown(apiServer *http.Server, done chan bool) {
 
 func main() {
 
-	server := server.NewServer()
+	server, err := server.NewServer()
+	if err != nil {
+		log.Fatalf("failed to create server: %v", err)
+	}
 
 	// Create a done channel to signal when the shutdown is complete
 	done := make(chan bool, 1)
 
 	// Run graceful shutdown in a separate goroutine
 	go gracefulShutdown(server, done)
-	logger.Log.Info("server started", "port", 8080)
-	err := server.ListenAndServe()
+	logger.Log.Info("server started", "addr", server.Addr)
+	err = server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		panic(fmt.Sprintf("http server error: %s", err))
 	}

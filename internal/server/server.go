@@ -4,34 +4,45 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 
+	"real_estate_crm/internal/brokers"
+	"real_estate_crm/internal/config"
 	"real_estate_crm/internal/database"
 	db "real_estate_crm/internal/db/sqlc"
 	"real_estate_crm/internal/logger"
+	"real_estate_crm/internal/tenants"
 )
 
 type Server struct {
-	port    int
-	queries db.Querier
-	db      database.Service
-	logger  *slog.Logger
+	port          int
+	tenantService *tenants.Service
+	brokerService *brokers.Service
+	db            database.Service
+	logger        *slog.Logger
 }
 
-func NewServer() *http.Server {
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
-	logger.Init("debug")
-	dbService := database.New(logger.Log)
+func NewServer() (*http.Server, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Init(cfg.LogLevel)
+	dbService, err := database.New(logger.Log, cfg.Database)
+	if err != nil {
+		return nil, err
+	}
+	queries := db.New(dbService.GetDB())
 
 	NewServer := &Server{
-		port:    port,
-		db:      dbService,
-		queries: db.New(dbService.GetDB()),
-		logger:  logger.Log,
+		port:          cfg.Port,
+		db:            dbService,
+		tenantService: tenants.NewService(queries),
+		brokerService: brokers.NewService(queries),
+		logger:        logger.Log,
 	}
 
 	// Declare Server config
@@ -43,5 +54,5 @@ func NewServer() *http.Server {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	return server
+	return server, nil
 }

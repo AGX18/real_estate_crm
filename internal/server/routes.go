@@ -26,20 +26,27 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.Get("/health", s.healthHandler)
 
+	s.registerTenantRoutes(r)
+	s.registerBrokerRoutes(r)
+
+	return r
+}
+
+func (s *Server) registerTenantRoutes(r chi.Router) {
 	r.Post("/tenants", s.CreateTenant)
 	r.Get("/tenants", s.ListTenants)
 	r.Get("/tenants/{id}", s.GetTenant)
 	r.Patch("/tenants/{id}/status", s.UpdateTenantStatus)
 	r.Delete("/tenants/{id}", s.DeleteTenant)
+}
 
+func (s *Server) registerBrokerRoutes(r chi.Router) {
 	r.Post("/tenants/{tenant_id}/brokers", s.CreateBroker)
 	r.Get("/tenants/{tenant_id}/brokers", s.ListBrokers)
 	r.Get("/tenants/{tenant_id}/brokers/email/{email}", s.GetBrokerByEmail)
 	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.GetBroker)
 	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.UpdateBrokerRole)
 	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.DeleteBroker)
-
-	return r
 }
 
 func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
