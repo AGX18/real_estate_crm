@@ -2,15 +2,24 @@ package properties
 
 import (
 	"context"
+	"strings"
 
 	db "real_estate_crm/internal/db/sqlc"
+	"real_estate_crm/internal/embeddings"
+	"real_estate_crm/internal/store"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgvector/pgvector-go"
 )
 
 type Service struct {
-	queries db.Querier
+	queries  db.Querier
+	store    txRunner
+	embedder embeddings.Embedder
+}
+
+type txRunner interface {
+	WithTx(ctx context.Context, fn func(q db.Querier) error) error
 }
 
 type CreateParams struct {
@@ -31,16 +40,48 @@ type PropertyResult struct {
 }
 
 func NewService(queries db.Querier) *Service {
-	return &Service{queries: queries}
+	return &Service{queries: queries, embedder: embeddings.NoopEmbedder{}}
+}
+
+func NewServiceWithEmbedder(queries db.Querier, embedder embeddings.Embedder) *Service {
+	if embedder == nil {
+		embedder = embeddings.NoopEmbedder{}
+	}
+	return &Service{queries: queries, embedder: embedder}
+}
+
+func NewServiceWithStore(store *store.Store, embedder embeddings.Embedder) *Service {
+	if embedder == nil {
+		embedder = embeddings.NoopEmbedder{}
+	}
+	return &Service{queries: store.Queries(), store: store, embedder: embedder}
 }
 
 func (s *Service) Create(ctx context.Context, params CreateParams) (PropertyResult, error) {
-	property, err := s.queries.CreateProperty(ctx, params.Property)
+	params, err := s.withEmbedding(ctx, params)
+	if err != nil {
+		return PropertyResult{}, err
+	}
+	if s.store == nil {
+		return s.create(ctx, s.queries, params)
+	}
+
+	var result PropertyResult
+	err = s.store.WithTx(ctx, func(q db.Querier) error {
+		var err error
+		result, err = s.create(ctx, q, params)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) create(ctx context.Context, q db.Querier, params CreateParams) (PropertyResult, error) {
+	property, err := q.CreateProperty(ctx, params.Property)
 	if err != nil {
 		return PropertyResult{}, err
 	}
 
-	embeddingStored, err := s.createEmbedding(ctx, property.TenantID, property.ID, params.Content, params.Embedding)
+	embeddingStored, err := s.createEmbedding(ctx, q, property.TenantID, property.ID, params.Content, params.Embedding)
 	if err != nil {
 		return PropertyResult{}, err
 	}
@@ -77,19 +118,37 @@ func (s *Service) ListByType(ctx context.Context, params db.ListPropertiesByType
 }
 
 func (s *Service) Update(ctx context.Context, params UpdateParams) (PropertyResult, error) {
-	property, err := s.queries.UpdateProperty(ctx, params.Property)
+	params, err := s.withUpdateEmbedding(ctx, params)
+	if err != nil {
+		return PropertyResult{}, err
+	}
+	if s.store == nil {
+		return s.update(ctx, s.queries, params)
+	}
+
+	var result PropertyResult
+	err = s.store.WithTx(ctx, func(q db.Querier) error {
+		var err error
+		result, err = s.update(ctx, q, params)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) update(ctx context.Context, q db.Querier, params UpdateParams) (PropertyResult, error) {
+	property, err := q.UpdateProperty(ctx, params.Property)
 	if err != nil {
 		return PropertyResult{}, err
 	}
 
-	if err := s.queries.DeletePropertyEmbedding(ctx, db.DeletePropertyEmbeddingParams{
+	if err := q.DeletePropertyEmbedding(ctx, db.DeletePropertyEmbeddingParams{
 		PropertyID: property.ID,
 		TenantID:   property.TenantID,
 	}); err != nil {
 		return PropertyResult{}, err
 	}
 
-	embeddingStored, err := s.createEmbedding(ctx, property.TenantID, property.ID, params.Content, params.Embedding)
+	embeddingStored, err := s.createEmbedding(ctx, q, property.TenantID, property.ID, params.Content, params.Embedding)
 	if err != nil {
 		return PropertyResult{}, err
 	}
@@ -105,12 +164,16 @@ func (s *Service) Search(ctx context.Context, params db.SearchPropertyEmbeddings
 	return s.queries.SearchPropertyEmbeddings(ctx, params)
 }
 
-func (s *Service) createEmbedding(ctx context.Context, tenantID pgtype.UUID, propertyID int64, content string, embedding []float32) (bool, error) {
+func (s *Service) Embed(ctx context.Context, text string) ([]float32, error) {
+	return s.embedder.Embed(ctx, text)
+}
+
+func (s *Service) createEmbedding(ctx context.Context, q db.Querier, tenantID pgtype.UUID, propertyID int64, content string, embedding []float32) (bool, error) {
 	if len(embedding) == 0 {
 		return false, nil
 	}
 
-	if _, err := s.queries.CreatePropertyEmbedding(ctx, db.CreatePropertyEmbeddingParams{
+	if _, err := q.CreatePropertyEmbedding(ctx, db.CreatePropertyEmbeddingParams{
 		TenantID:   tenantID,
 		PropertyID: propertyID,
 		Embedding:  pgvector.NewVector(embedding),
@@ -120,4 +183,28 @@ func (s *Service) createEmbedding(ctx context.Context, tenantID pgtype.UUID, pro
 	}
 
 	return true, nil
+}
+
+func (s *Service) withEmbedding(ctx context.Context, params CreateParams) (CreateParams, error) {
+	if len(params.Embedding) > 0 || strings.TrimSpace(params.Content) == "" {
+		return params, nil
+	}
+	embedding, err := s.embedder.Embed(ctx, params.Content)
+	if err != nil {
+		return CreateParams{}, err
+	}
+	params.Embedding = embedding
+	return params, nil
+}
+
+func (s *Service) withUpdateEmbedding(ctx context.Context, params UpdateParams) (UpdateParams, error) {
+	if len(params.Embedding) > 0 || strings.TrimSpace(params.Content) == "" {
+		return params, nil
+	}
+	embedding, err := s.embedder.Embed(ctx, params.Content)
+	if err != nil {
+		return UpdateParams{}, err
+	}
+	params.Embedding = embedding
+	return params, nil
 }

@@ -12,10 +12,11 @@ import (
 	"real_estate_crm/internal/brokers"
 	"real_estate_crm/internal/config"
 	"real_estate_crm/internal/database"
-	db "real_estate_crm/internal/db/sqlc"
+	"real_estate_crm/internal/embeddings"
 	"real_estate_crm/internal/leads"
 	"real_estate_crm/internal/logger"
 	"real_estate_crm/internal/properties"
+	appstore "real_estate_crm/internal/store"
 	"real_estate_crm/internal/tenants"
 	"real_estate_crm/internal/voice"
 )
@@ -49,14 +50,16 @@ func NewServer() (*http.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	queries := db.New(dbService.GetDB())
+	store := appstore.New(dbService.GetDB())
+	queries := store.Queries()
 
 	tenantService := tenants.NewService(queries)
 	brokerService := brokers.NewService(queries)
 	authService := auth.NewService(queries, auth.NewTokenManager(cfg.Auth.TokenSecret))
 	leadService := leads.NewService(queries)
-	propertyService := properties.NewService(queries)
-	voiceService := voice.NewService(queries)
+	embedder := embeddings.NewOpenAIEmbedder(cfg.Embeddings.APIKey, cfg.Embeddings.Model, cfg.Embeddings.Dimensions)
+	propertyService := properties.NewServiceWithStore(store, embedder)
+	voiceService := voice.NewServiceWithStore(store)
 
 	NewServer := &Server{
 		port:            cfg.Port,

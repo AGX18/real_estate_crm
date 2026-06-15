@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	db "real_estate_crm/internal/db/sqlc"
+	"real_estate_crm/internal/store"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,11 @@ import (
 
 type Service struct {
 	queries db.Querier
+	store   txRunner
+}
+
+type txRunner interface {
+	WithTx(ctx context.Context, fn func(q db.Querier) error) error
 }
 
 type CreateCallParams struct {
@@ -36,8 +42,26 @@ func NewService(queries db.Querier) *Service {
 	return &Service{queries: queries}
 }
 
+func NewServiceWithStore(store *store.Store) *Service {
+	return &Service{queries: store.Queries(), store: store}
+}
+
 func (s *Service) CreateCall(ctx context.Context, params CreateCallParams) (CreateCallResult, error) {
-	lead, err := s.queries.GetLeadByPhone(ctx, db.GetLeadByPhoneParams{
+	if s.store == nil {
+		return s.createCall(ctx, s.queries, params)
+	}
+
+	var result CreateCallResult
+	err := s.store.WithTx(ctx, func(q db.Querier) error {
+		var err error
+		result, err = s.createCall(ctx, q, params)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) createCall(ctx context.Context, q db.Querier, params CreateCallParams) (CreateCallResult, error) {
+	lead, err := q.GetLeadByPhone(ctx, db.GetLeadByPhoneParams{
 		Phone:    params.Phone,
 		TenantID: params.TenantID,
 	})
@@ -46,7 +70,7 @@ func (s *Service) CreateCall(ctx context.Context, params CreateCallParams) (Crea
 			return CreateCallResult{}, err
 		}
 
-		lead, err = s.queries.CreateLead(ctx, db.CreateLeadParams{
+		lead, err = q.CreateLead(ctx, db.CreateLeadParams{
 			TenantID:    params.TenantID,
 			Phone:       params.Phone,
 			Description: textParam(params.Description),
@@ -56,7 +80,7 @@ func (s *Service) CreateCall(ctx context.Context, params CreateCallParams) (Crea
 			return CreateCallResult{}, err
 		}
 	} else {
-		lead, err = s.queries.UpdateLead(ctx, db.UpdateLeadParams{
+		lead, err = q.UpdateLead(ctx, db.UpdateLeadParams{
 			ID:          lead.ID,
 			Phone:       params.Phone,
 			Description: textParam(params.Description),
@@ -68,7 +92,7 @@ func (s *Service) CreateCall(ctx context.Context, params CreateCallParams) (Crea
 		}
 	}
 
-	call, err := s.queries.CreateCall(ctx, db.CreateCallParams{
+	call, err := q.CreateCall(ctx, db.CreateCallParams{
 		TenantID:     params.TenantID,
 		LeadID:       pgtype.Int8{Int64: lead.ID, Valid: true},
 		Transcript:   textParam(params.Transcript),

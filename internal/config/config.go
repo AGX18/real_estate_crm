@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	Port     int
-	LogLevel string
-	Database Database
-	Auth     Auth
+	Port       int
+	LogLevel   string
+	Database   Database
+	Auth       Auth
+	Embeddings Embeddings
 }
 
 type Database struct {
@@ -24,6 +25,12 @@ type Database struct {
 
 type Auth struct {
 	TokenSecret string
+}
+
+type Embeddings struct {
+	APIKey     string
+	Model      string
+	Dimensions int
 }
 
 func Load() (Config, error) {
@@ -45,6 +52,11 @@ func Load() (Config, error) {
 		},
 		Auth: Auth{
 			TokenSecret: getEnv("JWT_SECRET", "local-development-secret"),
+		},
+		Embeddings: Embeddings{
+			APIKey:     os.Getenv("OPENAI_API_KEY"),
+			Model:      getEnv("EMBEDDING_MODEL", "text-embedding-3-small"),
+			Dimensions: getEnvInt("EMBEDDING_DIMENSIONS", 1536),
 		},
 	}
 
@@ -100,4 +112,16 @@ func getEnv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func getEnvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

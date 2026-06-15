@@ -41,6 +41,7 @@ type propertyRequest struct {
 
 type searchRequest struct {
 	Embedding []float32 `json:"embedding"`
+	Query     string    `json:"query"`
 	Limit     int32     `json:"limit"`
 }
 
@@ -254,6 +255,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateEmbedding(body.Embedding); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	result, err := h.service.Update(r.Context(), UpdateParams{
 		Property:  params,
@@ -296,8 +301,16 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if len(body.Embedding) == 0 && strings.TrimSpace(body.Query) != "" {
+		embedding, err := h.service.Embed(r.Context(), body.Query)
+		if err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "failed to embed query")
+			return
+		}
+		body.Embedding = embedding
+	}
 	if len(body.Embedding) == 0 {
-		httpx.WriteError(w, http.StatusBadRequest, "embedding is required")
+		httpx.WriteError(w, http.StatusBadRequest, "embedding or query is required")
 		return
 	}
 	if err := validateEmbedding(body.Embedding); err != nil {
