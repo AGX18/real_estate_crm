@@ -8,6 +8,7 @@ CREATE TABLE calls (
     tenant_id     UUID NOT NULL REFERENCES tenants(id),
     lead_id       BIGINT REFERENCES leads(id),
     transcript    TEXT,
+    details       TEXT,
     summary       TEXT,
     sentiment     call_sentiment,
     outcome       call_outcome DEFAULT 'follow_up',

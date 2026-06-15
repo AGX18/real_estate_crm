@@ -1,6 +1,6 @@
 -- name: CreateCall :one
-INSERT INTO calls (tenant_id, lead_id, transcript, summary, sentiment, outcome, duration_secs)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO calls (tenant_id, lead_id, transcript, details, summary, sentiment, outcome, duration_secs)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetCallByID :one
@@ -26,11 +26,12 @@ ORDER BY created_at DESC;
 UPDATE calls
 SET
     transcript = $2,
-    summary = $3,
-    sentiment = $4,
-    outcome = $5,
-    duration_secs = $6
-WHERE id = $1 AND tenant_id = $7
+    details = $3,
+    summary = $4,
+    sentiment = $5,
+    outcome = $6,
+    duration_secs = $7
+WHERE id = $1 AND tenant_id = $8
 RETURNING *;
 
 -- name: DeleteCall :exec

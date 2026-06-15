@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS property_embeddings (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     property_id BIGINT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    embedding   vector(1024),
+    embedding   vector(1536),
     content     TEXT NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

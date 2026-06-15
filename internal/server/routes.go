@@ -29,6 +29,9 @@ func (s *Server) RegisterRoutes() http.Handler {
 	s.registerAuthRoutes(r)
 	s.registerTenantRoutes(r)
 	s.registerBrokerRoutes(r)
+	s.registerLeadRoutes(r)
+	s.registerPropertyRoutes(r)
+	s.registerVoiceRoutes(r)
 
 	return r
 }
@@ -52,6 +55,31 @@ func (s *Server) registerBrokerRoutes(r chi.Router) {
 	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Get)
 	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.brokerHandler.UpdateRole)
 	r.Delete("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Delete)
+}
+
+func (s *Server) registerLeadRoutes(r chi.Router) {
+	r.Post("/tenants/{tenant_id}/leads", s.leadHandler.Create)
+	r.Get("/tenants/{tenant_id}/leads", s.leadHandler.List)
+	r.Get("/tenants/{tenant_id}/leads/phone/{phone}", s.leadHandler.GetByPhone)
+	r.Get("/tenants/{tenant_id}/leads/{lead_id}", s.leadHandler.Get)
+	r.Put("/tenants/{tenant_id}/leads/{lead_id}", s.leadHandler.Update)
+	r.Patch("/tenants/{tenant_id}/leads/{lead_id}/status", s.leadHandler.UpdateStatus)
+	r.Patch("/tenants/{tenant_id}/leads/{lead_id}/description", s.leadHandler.UpdateDescription)
+	r.Delete("/tenants/{tenant_id}/leads/{lead_id}", s.leadHandler.Delete)
+}
+
+func (s *Server) registerPropertyRoutes(r chi.Router) {
+	r.Post("/tenants/{tenant_id}/properties", s.propertyHandler.Create)
+	r.Post("/tenants/{tenant_id}/properties/bulk", s.propertyHandler.CreateMany)
+	r.Get("/tenants/{tenant_id}/properties", s.propertyHandler.List)
+	r.Post("/tenants/{tenant_id}/properties/search", s.propertyHandler.Search)
+	r.Get("/tenants/{tenant_id}/properties/{property_id}", s.propertyHandler.Get)
+	r.Put("/tenants/{tenant_id}/properties/{property_id}", s.propertyHandler.Update)
+	r.Delete("/tenants/{tenant_id}/properties/{property_id}", s.propertyHandler.Delete)
+}
+
+func (s *Server) registerVoiceRoutes(r chi.Router) {
+	r.Post("/tenants/{tenant_id}/calls", s.voiceHandler.CreateCall)
 }
 
 func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {

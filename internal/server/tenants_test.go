@@ -8,7 +8,10 @@ import (
 	"real_estate_crm/internal/auth"
 	"real_estate_crm/internal/brokers"
 	db "real_estate_crm/internal/db/sqlc"
+	"real_estate_crm/internal/leads"
+	"real_estate_crm/internal/properties"
 	"real_estate_crm/internal/tenants"
+	"real_estate_crm/internal/voice"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -17,13 +20,22 @@ func newTestServer(q db.Querier) *Server {
 	tenantService := tenants.NewService(q)
 	brokerService := brokers.NewService(q)
 	authService := auth.NewService(q, auth.NewTokenManager("test-secret"))
+	leadService := leads.NewService(q)
+	propertyService := properties.NewService(q)
+	voiceService := voice.NewService(q)
 	s := &Server{
-		tenantService: tenantService,
-		brokerService: brokerService,
-		authService:   authService,
-		tenantHandler: tenants.NewHandler(tenantService),
-		brokerHandler: brokers.NewHandler(brokerService),
-		authHandler:   auth.NewHandler(authService),
+		tenantService:   tenantService,
+		brokerService:   brokerService,
+		authService:     authService,
+		leadService:     leadService,
+		propertyService: propertyService,
+		voiceService:    voiceService,
+		tenantHandler:   tenants.NewHandler(tenantService),
+		brokerHandler:   brokers.NewHandler(brokerService),
+		authHandler:     auth.NewHandler(authService),
+		leadHandler:     leads.NewHandler(leadService),
+		propertyHandler: properties.NewHandler(propertyService),
+		voiceHandler:    voice.NewHandler(voiceService),
 	}
 	return s
 }
