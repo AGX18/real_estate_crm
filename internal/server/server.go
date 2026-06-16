@@ -29,6 +29,7 @@ type Server struct {
 	leadService     *leads.Service
 	propertyService *properties.Service
 	voiceService    *voice.Service
+	tokenManager    *auth.TokenManager
 	tenantHandler   *tenants.Handler
 	brokerHandler   *brokers.Handler
 	authHandler     *auth.Handler
@@ -55,7 +56,8 @@ func NewServer() (*http.Server, error) {
 
 	tenantService := tenants.NewService(queries)
 	brokerService := brokers.NewService(queries)
-	authService := auth.NewService(queries, auth.NewTokenManager(cfg.Auth.TokenSecret))
+	tokenManager := auth.NewTokenManager(cfg.Auth.TokenSecret)
+	authService := auth.NewServiceWithStore(store, queries, tokenManager)
 	leadService := leads.NewService(queries)
 	embedder := embeddings.NewOpenAIEmbedder(cfg.Embeddings.APIKey, cfg.Embeddings.Model, cfg.Embeddings.Dimensions)
 	propertyService := properties.NewServiceWithStore(store, embedder)
@@ -70,6 +72,7 @@ func NewServer() (*http.Server, error) {
 		leadService:     leadService,
 		propertyService: propertyService,
 		voiceService:    voiceService,
+		tokenManager:    tokenManager,
 		tenantHandler:   tenants.NewHandler(tenantService),
 		brokerHandler:   brokers.NewHandler(brokerService),
 		authHandler:     auth.NewHandler(authService),

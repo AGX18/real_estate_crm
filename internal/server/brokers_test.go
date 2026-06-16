@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/AGX18/real_estate_crm/internal/auth"
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,7 @@ func TestCreateBroker(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"username":"agent","email":"agent@example.com","password":"secret","role":"user"}`)
 	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/brokers", body)
+	req.Header.Set("Authorization", "Bearer "+testToken(t, s, db.RoleAdmin, testTenantID))
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -42,6 +44,51 @@ func TestCreateBroker(t *testing.T) {
 	if err := bcrypt.CompareHashAndPassword([]byte(mock.createBrokerArg.PasswordHash), []byte("secret")); err != nil {
 		t.Fatalf("expected password hash to match submitted password: %v", err)
 	}
+}
+
+func TestCreateBrokerRequiresAdminToken(t *testing.T) {
+	mock := &mockQueries{}
+	s := newTestServer(mock)
+	r := newBrokerTestRouter(s)
+
+	body := bytes.NewBufferString(`{"username":"agent","email":"agent@example.com","password":"secret","role":"user"}`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/brokers", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected %d got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestCreateBrokerRejectsUserToken(t *testing.T) {
+	mock := &mockQueries{}
+	s := newTestServer(mock)
+	r := newBrokerTestRouter(s)
+
+	body := bytes.NewBufferString(`{"username":"agent","email":"agent@example.com","password":"secret","role":"user"}`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/brokers", body)
+	req.Header.Set("Authorization", "Bearer "+testToken(t, s, db.RoleUser, testTenantID))
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected %d got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func testToken(t *testing.T, s *Server, role db.Role, tenantID string) string {
+	t.Helper()
+	token, err := s.tokenManager.Generate(auth.Claims{
+		BrokerID: 1,
+		TenantID: tenantID,
+		Email:    "admin@example.com",
+		Role:     role,
+	})
+	if err != nil {
+		t.Fatalf("failed to generate token: %v", err)
+	}
+	return token
 }
 
 func TestGetBroker(t *testing.T) {

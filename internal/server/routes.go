@@ -37,6 +37,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 }
 
 func (s *Server) registerAuthRoutes(r chi.Router) {
+	r.Post("/register", s.authHandler.Register)
 	r.Post("/login", s.authHandler.Login)
 }
 
@@ -49,7 +50,7 @@ func (s *Server) registerTenantRoutes(r chi.Router) {
 }
 
 func (s *Server) registerBrokerRoutes(r chi.Router) {
-	r.Post("/tenants/{tenant_id}/brokers", s.brokerHandler.Create)
+	r.With(s.requireAdmin).Post("/tenants/{tenant_id}/brokers", s.brokerHandler.Create)
 	r.Get("/tenants/{tenant_id}/brokers", s.brokerHandler.List)
 	r.Get("/tenants/{tenant_id}/brokers/{broker_id}", s.brokerHandler.Get)
 	r.Patch("/tenants/{tenant_id}/brokers/{broker_id}/role", s.brokerHandler.UpdateRole)

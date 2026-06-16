@@ -19,7 +19,8 @@ import (
 func newTestServer(q db.Querier) *Server {
 	tenantService := tenants.NewService(q)
 	brokerService := brokers.NewService(q)
-	authService := auth.NewService(q, auth.NewTokenManager("test-secret"))
+	tokenManager := auth.NewTokenManager("test-secret")
+	authService := auth.NewService(q, tokenManager)
 	leadService := leads.NewService(q)
 	propertyService := properties.NewService(q)
 	voiceService := voice.NewService(q)
@@ -30,6 +31,7 @@ func newTestServer(q db.Querier) *Server {
 		leadService:     leadService,
 		propertyService: propertyService,
 		voiceService:    voiceService,
+		tokenManager:    tokenManager,
 		tenantHandler:   tenants.NewHandler(tenantService),
 		brokerHandler:   brokers.NewHandler(brokerService),
 		authHandler:     auth.NewHandler(authService),
