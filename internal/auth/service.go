@@ -18,9 +18,9 @@ type Service struct {
 }
 
 type LoginParams struct {
-	TenantID pgtype.UUID
-	Email    string
-	Password string
+	TenantName string
+	Email      string
+	Password   string
 }
 
 type BrokerResponse struct {
@@ -41,9 +41,14 @@ func NewService(queries db.Querier, tokenManager *TokenManager) *Service {
 }
 
 func (s *Service) Login(ctx context.Context, params LoginParams) (LoginResult, error) {
+	tenant, err := s.queries.GetTenantByName(ctx, params.TenantName)
+	if err != nil {
+		return LoginResult{}, ErrInvalidCredentials
+	}
+
 	broker, err := s.queries.GetBrokerByEmail(ctx, db.GetBrokerByEmailParams{
 		Email:    params.Email,
-		TenantID: params.TenantID,
+		TenantID: tenant.ID,
 	})
 	if err != nil {
 		return LoginResult{}, ErrInvalidCredentials

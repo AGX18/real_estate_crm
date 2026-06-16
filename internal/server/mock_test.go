@@ -40,6 +40,9 @@ func (m *mockQueries) CreateTenant(ctx context.Context, arg db.CreateTenantParam
 func (m *mockQueries) GetTenant(ctx context.Context, id pgtype.UUID) (db.Tenant, error) {
 	return m.tenant, m.err
 }
+func (m *mockQueries) GetTenantByName(ctx context.Context, name string) (db.Tenant, error) {
+	return m.tenant, m.err
+}
 func (m *mockQueries) ListTenants(ctx context.Context) ([]db.Tenant, error) {
 	return m.tenants, m.err
 }

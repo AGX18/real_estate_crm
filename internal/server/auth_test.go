@@ -28,8 +28,10 @@ func TestLogin(t *testing.T) {
 	}
 
 	mock := &mockQueries{
+		tenant: db.Tenant{ID: mustParseUUID(t, testTenantID), Name: "acme"},
 		broker: db.Broker{
 			ID:           1,
+			TenantID:     mustParseUUID(t, testTenantID),
 			Username:     "agent",
 			Email:        "agent@example.com",
 			PasswordHash: string(passwordHash),
@@ -39,8 +41,8 @@ func TestLogin(t *testing.T) {
 	s := newTestServer(mock)
 	r := newAuthTestRouter(s)
 
-	body := bytes.NewBufferString(`{"email":"agent@example.com","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/login", body)
+	body := bytes.NewBufferString(`{"tenant_name":"acme","email":"agent@example.com","password":"secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/login", body)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -80,8 +82,10 @@ func TestLoginInvalidPassword(t *testing.T) {
 	}
 
 	mock := &mockQueries{
+		tenant: db.Tenant{ID: mustParseUUID(t, testTenantID), Name: "acme"},
 		broker: db.Broker{
 			ID:           1,
+			TenantID:     mustParseUUID(t, testTenantID),
 			Username:     "agent",
 			Email:        "agent@example.com",
 			PasswordHash: string(passwordHash),
@@ -91,8 +95,8 @@ func TestLoginInvalidPassword(t *testing.T) {
 	s := newTestServer(mock)
 	r := newAuthTestRouter(s)
 
-	body := bytes.NewBufferString(`{"email":"agent@example.com","password":"wrong"}`)
-	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/login", body)
+	body := bytes.NewBufferString(`{"tenant_name":"acme","email":"agent@example.com","password":"wrong"}`)
+	req := httptest.NewRequest(http.MethodPost, "/login", body)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)

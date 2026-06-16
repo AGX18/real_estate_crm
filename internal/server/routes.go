@@ -37,7 +37,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 }
 
 func (s *Server) registerAuthRoutes(r chi.Router) {
-	r.Post("/tenants/{tenant_id}/login", s.authHandler.Login)
+	r.Post("/login", s.authHandler.Login)
 }
 
 func (s *Server) registerTenantRoutes(r chi.Router) {

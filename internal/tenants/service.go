@@ -24,6 +24,10 @@ func (s *Service) Get(ctx context.Context, id pgtype.UUID) (db.Tenant, error) {
 	return s.queries.GetTenant(ctx, id)
 }
 
+func (s *Service) GetByName(ctx context.Context, name string) (db.Tenant, error) {
+	return s.queries.GetTenantByName(ctx, name)
+}
+
 func (s *Service) List(ctx context.Context) ([]db.Tenant, error) {
 	return s.queries.ListTenants(ctx)
 }
