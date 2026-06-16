@@ -528,6 +528,27 @@ dt {
   margin: 0;
 }
 
+.qualification-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qualification-list span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: #506057;
+  background: #eef4ec;
+  font-size: 13px;
+}
+
+.qualification-list b {
+  color: #1f4e3a;
+}
+
 .property-table {
   overflow: hidden;
 }

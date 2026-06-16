@@ -256,18 +256,21 @@ function App() {
 
             <div className="lead-list">
               {leads.length === 0 && <EmptyState message="No leads found for this tenant." />}
-              {leads.map((lead) => (
-                <button
-                  className={`lead-card ${selectedLead?.id === lead.id ? 'selected' : ''}`}
-                  key={lead.id}
-                  onClick={() => setSelectedLeadID(lead.id)}
-                >
-                  <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>{leadLabels[leadStatus(lead)]}</span>
-                  <strong>{lead.phone}</strong>
-                  <span>{textValue(lead.description) || 'No description'}</span>
-                  <small>Lead #{lead.id} · {dateLabel(lead.created_at)}</small>
-                </button>
-              ))}
+              {leads.map((lead) => {
+                const description = leadDescription(lead)
+                return (
+                  <button
+                    className={`lead-card ${selectedLead?.id === lead.id ? 'selected' : ''}`}
+                    key={lead.id}
+                    onClick={() => setSelectedLeadID(lead.id)}
+                  >
+                    <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>{leadLabels[leadStatus(lead)]}</span>
+                    <strong>{lead.phone}</strong>
+                    <span>{description.summary || 'No description'}</span>
+                    <small>{dateLabel(lead.created_at)}</small>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -280,15 +283,8 @@ function App() {
               {selectedLead && <span className={`badge ${leadStatusClass(leadStatus(selectedLead))}`}>{leadLabels[leadStatus(selectedLead)]}</span>}
             </div>
             {selectedLead ? (
-              <dl className="detail-list">
-                <div>
-                  <dt>ID</dt>
-                  <dd>{selectedLead.id}</dd>
-                </div>
-                <div>
-                  <dt>Description</dt>
-                  <dd>{textValue(selectedLead.description) || 'No description'}</dd>
-                </div>
+              <dl className="detail-list lead-detail-list">
+                <LeadDescriptionDetails lead={selectedLead} />
                 <div>
                   <dt>Created</dt>
                   <dd>{dateLabel(selectedLead.created_at)}</dd>
@@ -584,6 +580,51 @@ function EmptyState({ message }: { message: string }) {
   return <p className="empty-state">{message}</p>
 }
 
+function LeadDescriptionDetails({ lead }: { lead: Lead }) {
+  const description = leadDescription(lead)
+
+  if (!description.summary && !description.intent && description.qualifications.length === 0) {
+    return (
+      <div>
+        <dt>Description</dt>
+        <dd>No description</dd>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {description.summary && (
+        <div>
+          <dt>Summary</dt>
+          <dd>{description.summary}</dd>
+        </div>
+      )}
+      {description.intent && (
+        <div>
+          <dt>Intent</dt>
+          <dd>{humanizeValue(description.intent)}</dd>
+        </div>
+      )}
+      {description.qualifications.length > 0 && (
+        <div>
+          <dt>Qualification</dt>
+          <dd>
+            <div className="qualification-list">
+              {description.qualifications.map(([key, value]) => (
+                <span key={key}>
+                  <b>{humanizeValue(key)}</b>
+                  {value}
+                </span>
+              ))}
+            </div>
+          </dd>
+        </div>
+      )}
+    </>
+  )
+}
+
 async function reload(
   session: Session,
   isAdmin: boolean,
@@ -689,6 +730,52 @@ function textValue(value: NullableText | string | null | undefined) {
   }
   const valid = value.Valid ?? value.valid ?? true
   return valid ? value.String ?? value.string ?? '' : ''
+}
+
+function leadDescription(lead: Lead) {
+  return parseLeadDescription(textValue(lead.description))
+}
+
+function parseLeadDescription(value: string): {
+  summary: string
+  intent: string
+  qualifications: Array<[string, string]>
+} {
+  const lines = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const qualificationLine = lines.find((line) => line.startsWith('Qualification:'))
+  const intentLine = lines.find((line) => line.startsWith('Intent:'))
+  const summaryLines = lines.filter(
+    (line) => !line.startsWith('Qualification:') && !line.startsWith('Intent:'),
+  )
+
+  return {
+    summary: summaryLines.join(' ').trim() || value.trim(),
+    intent: intentLine?.replace('Intent:', '').trim() ?? '',
+    qualifications: parseQualification(qualificationLine?.replace('Qualification:', '').trim() ?? ''),
+  }
+}
+
+function parseQualification(value: string): Array<[string, string]> {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return Object.entries(parsed)
+      .filter(([, item]) => item !== null && item !== undefined && item !== '')
+      .map(([key, item]) => [key, String(item)])
+  } catch {
+    return [['details', value]]
+  }
+}
+
+function humanizeValue(value: string) {
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function enumValue<T extends string>(value: NullableValue<T> | T | null | undefined, fallback: T, keys: string[]) {
