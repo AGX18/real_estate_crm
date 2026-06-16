@@ -60,6 +60,10 @@ func (s *Service) CreateCall(ctx context.Context, params CreateCallParams) (Crea
 	return result, err
 }
 
+func (s *Service) ListCalls(ctx context.Context, tenantID pgtype.UUID) ([]db.Call, error) {
+	return s.queries.ListCalls(ctx, tenantID)
+}
+
 func (s *Service) createCall(ctx context.Context, q db.Querier, params CreateCallParams) (CreateCallResult, error) {
 	lead, err := q.GetLeadByPhone(ctx, db.GetLeadByPhoneParams{
 		Phone:    params.Phone,

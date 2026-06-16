@@ -510,6 +510,17 @@ dt {
   background: #dbeaf7;
 }
 
+.badge.closed {
+  color: #195737;
+  background: #d8f1df;
+}
+
+.badge.unqualified,
+.badge.no_answer {
+  color: #7a241c;
+  background: #fde8e5;
+}
+
 .detail-list {
   margin: 0;
 }
@@ -576,6 +587,114 @@ dt {
 
 .property-row > strong {
   text-align: right;
+}
+
+.calls-panel {
+  margin-top: 16px;
+}
+
+.calls-list {
+  display: grid;
+  gap: 10px;
+}
+
+.call-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #dce4da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.call-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.call-card-title {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.call-card strong {
+  display: block;
+  color: #1b2a23;
+}
+
+.call-card small {
+  display: block;
+  color: #66756b;
+  font-size: 13px;
+}
+
+.call-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.call-meta span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: #506057;
+  background: #eef4ec;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.call-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e8eee6;
+}
+
+.call-detail-grid div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.call-detail-grid dt {
+  color: #66756b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.call-detail-grid dd {
+  margin: 0;
+  color: #1b2a23;
+  font-size: 13px;
+}
+
+.transcript-panel {
+  padding-top: 12px;
+  border-top: 1px solid #e8eee6;
+}
+
+.transcript-panel summary {
+  cursor: pointer;
+  color: #246b4b;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.transcript-panel pre {
+  margin: 10px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #1b2a23;
+  background: #f6f8f4;
+  border-radius: 8px;
+  padding: 12px;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .broker-card {
@@ -735,6 +854,15 @@ dt {
 
   .property-row {
     grid-template-columns: 1fr;
+  }
+
+  .call-card-main,
+  .call-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .call-meta {
+    justify-content: flex-start;
   }
 
   .property-specs {

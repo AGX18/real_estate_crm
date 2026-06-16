@@ -102,6 +102,22 @@ func (h *Handler) CreateCall(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, result)
 }
 
+func (h *Handler) ListCalls(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		return
+	}
+
+	calls, err := h.service.ListCalls(r.Context(), tenantID)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch calls")
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, calls)
+}
+
 func decodeCreateCallRequest(r *http.Request) (createCallRequest, error) {
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {

@@ -125,3 +125,22 @@ func TestCreateCallUpdatesExistingLead(t *testing.T) {
 		t.Fatalf("expected duration 120 got %+v", mock.createCallArg.DurationSecs)
 	}
 }
+
+func TestListCalls(t *testing.T) {
+	mock := &mockQueries{
+		calls: []db.Call{
+			{ID: 1},
+			{ID: 2},
+		},
+	}
+	s := newTestServer(mock)
+	r := newVoiceTestRouter(s)
+
+	req := httptest.NewRequest(http.MethodGet, "/tenants/"+testTenantID+"/calls", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected %d got %d body %s", http.StatusOK, w.Code, w.Body.String())
+	}
+}

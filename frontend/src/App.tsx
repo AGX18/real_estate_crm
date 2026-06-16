@@ -6,6 +6,8 @@ import './App.css'
 type Role = 'user' | 'admin'
 type LeadStatus = 'Follow_Up' | 'qualified' | 'closed' | 'unqualified'
 type PropertyStatus = 'available' | 'sold' | 'rented'
+type CallOutcome = 'follow_up' | 'qualified' | 'closed' | 'unqualified' | 'no_answer'
+type CallSentiment = 'positive' | 'negative' | 'neutral'
 
 type Broker = {
   id: number
@@ -53,9 +55,31 @@ type Property = {
   updated_at?: string
 }
 
+type Call = {
+  id: number
+  tenant_id: string
+  lead_id?: NullableNumber | number | null
+  transcript?: NullableText | string | null
+  details?: NullableText | string | null
+  summary?: NullableText | string | null
+  sentiment?: NullableValue<CallSentiment> | CallSentiment | null
+  outcome?: NullableValue<CallOutcome> | CallOutcome | null
+  duration_secs?: NullableNumber | number | null
+  created_at?: string
+}
+
 type NullableText = {
   String?: string
   string?: string
+  Valid?: boolean
+  valid?: boolean
+}
+
+type NullableNumber = {
+  Int32?: number
+  Int64?: number
+  int32?: number
+  int64?: number
   Valid?: boolean
   valid?: boolean
 }
@@ -84,11 +108,20 @@ const propertyStatusLabels: Record<PropertyStatus, string> = {
   rented: 'Rented',
 }
 
+const callOutcomeLabels: Record<CallOutcome, string> = {
+  follow_up: 'Follow up',
+  qualified: 'Qualified',
+  closed: 'Closed',
+  unqualified: 'Unqualified',
+  no_answer: 'No answer',
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [leads, setLeads] = useState<Lead[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [brokers, setBrokers] = useState<Broker[]>([])
+  const [calls, setCalls] = useState<Call[]>([])
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [error, setError] = useState('')
   const [propertyFilter, setPropertyFilter] = useState<PropertyStatus | 'all'>('all')
@@ -99,7 +132,7 @@ function App() {
     if (!session) {
       return
     }
-    reload(session, isAdmin, setLeads, setProperties, setBrokers, setLoadState, setError, setSelectedLeadID)
+    reload(session, isAdmin, setLeads, setProperties, setBrokers, setCalls, setLoadState, setError, setSelectedLeadID)
   }
 
   useEffect(() => {
@@ -111,15 +144,26 @@ function App() {
     Promise.all([
       apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
       apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
+      apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
       isAdmin
         ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
         : Promise.resolve([]),
     ])
-      .then(([nextLeads, nextProperties, nextBrokers]) => {
+      .then(([nextLeads, nextProperties, nextCalls, nextBrokers]) => {
         if (cancelled) {
           return
         }
-        applyDashboardData(nextLeads, nextProperties, nextBrokers, setLeads, setProperties, setBrokers, setSelectedLeadID)
+        applyDashboardData(
+          nextLeads,
+          nextProperties,
+          nextBrokers,
+          nextCalls,
+          setLeads,
+          setProperties,
+          setBrokers,
+          setCalls,
+          setSelectedLeadID,
+        )
         setLoadState('ready')
       })
       .catch((err: Error) => {
@@ -143,9 +187,10 @@ function App() {
       const status = propertyStatus(property)
       return status === 'sold' || status === 'rented'
     }).length
+    const qualifiedCalls = calls.filter((call) => callOutcome(call) === 'qualified').length
 
-    return { qualified, followUps, available, closedInventory }
-  }, [leads, properties])
+    return { qualified, followUps, available, closedInventory, qualifiedCalls }
+  }, [calls, leads, properties])
 
   const propertyCounts = useMemo(
     () => ({
@@ -178,6 +223,7 @@ function App() {
     setLeads([])
     setProperties([])
     setBrokers([])
+    setCalls([])
     setSelectedLeadID(null)
     setLoadState('idle')
   }
@@ -198,7 +244,7 @@ function App() {
         </div>
 
         <nav className="nav-list">
-          {['Dashboard', 'Leads', 'Properties', ...(isAdmin ? ['Brokers'] : [])].map((item) => (
+          {['Dashboard', 'Leads', 'Properties', 'Calls', ...(isAdmin ? ['Brokers'] : [])].map((item) => (
             <a className={item === 'Dashboard' ? 'active' : ''} href={`#${item.toLowerCase()}`} key={item}>
               {item}
             </a>
@@ -242,7 +288,7 @@ function App() {
           <Metric label="Qualified leads" value={String(metrics.qualified)} trend="ready to move" />
           <Metric label="Follow-ups" value={String(metrics.followUps)} trend="needs next action" />
           <Metric label="Available units" value={String(metrics.available)} trend="open inventory" />
-          <Metric label="Closed inventory" value={String(metrics.closedInventory)} trend="sold or rented" />
+          <Metric label="Qualified calls" value={String(metrics.qualifiedCalls)} trend="voice outcomes" />
         </section>
 
         <section className="content-grid">
@@ -363,6 +409,21 @@ function App() {
               </div>
             </div>
           )}
+        </section>
+
+        <section className="panel calls-panel" id="calls">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Voice activity</p>
+              <h2>Calls</h2>
+            </div>
+          </div>
+          <div className="calls-list">
+            {calls.length === 0 && <EmptyState message="No calls found for this tenant." />}
+            {calls.map((call) => (
+              <CallCard call={call} leads={leads} key={call.id} />
+            ))}
+          </div>
         </section>
       </section>
     </main>
@@ -625,12 +686,56 @@ function LeadDescriptionDetails({ lead }: { lead: Lead }) {
   )
 }
 
+function CallCard({ call, leads }: { call: Call; leads: Lead[] }) {
+  const outcome = callOutcome(call)
+  const lead = leads.find((item) => item.id === numberValue(call.lead_id))
+  const summary = textValue(call.summary)
+  const details = parseCallDetails(textValue(call.details))
+  const transcript = textValue(call.transcript)
+
+  return (
+    <article className="call-card">
+      <div className="call-card-main">
+        <div className="call-card-title">
+          <span className={`badge ${callOutcomeClass(outcome)}`}>{callOutcomeLabels[outcome]}</span>
+          <strong>{summary || 'No call summary'}</strong>
+          <small>{dateLabel(call.created_at)}</small>
+        </div>
+        <div className="call-meta">
+          <span>{callSentiment(call)}</span>
+          <span>{durationLabel(call.duration_secs)}</span>
+          <span>{lead?.phone ?? 'No linked lead'}</span>
+        </div>
+      </div>
+
+      {details.length > 0 && (
+        <div className="call-detail-grid">
+          {details.map(([key, value]) => (
+            <div key={key}>
+              <dt>{humanizeValue(key)}</dt>
+              <dd>{formatCallDetailValue(value)}</dd>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {transcript && (
+        <details className="transcript-panel">
+          <summary>Transcript</summary>
+          <pre>{transcript}</pre>
+        </details>
+      )}
+    </article>
+  )
+}
+
 async function reload(
   session: Session,
   isAdmin: boolean,
   setLeads: (value: Lead[]) => void,
   setProperties: (value: Property[]) => void,
   setBrokers: (value: Broker[]) => void,
+  setCalls: (value: Call[]) => void,
   setLoadState: (value: LoadState) => void,
   setError: (value: string) => void,
   setSelectedLeadID?: (value: number | null) => void,
@@ -638,14 +743,25 @@ async function reload(
   setLoadState('loading')
   setError('')
   try {
-    const [nextLeads, nextProperties, nextBrokers] = await Promise.all([
+    const [nextLeads, nextProperties, nextCalls, nextBrokers] = await Promise.all([
       apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
       apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
+      apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
       isAdmin
         ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
         : Promise.resolve([]),
     ])
-    applyDashboardData(nextLeads, nextProperties, nextBrokers, setLeads, setProperties, setBrokers, setSelectedLeadID)
+    applyDashboardData(
+      nextLeads,
+      nextProperties,
+      nextBrokers,
+      nextCalls,
+      setLeads,
+      setProperties,
+      setBrokers,
+      setCalls,
+      setSelectedLeadID,
+    )
     setLoadState('ready')
   } catch (err) {
     setError(err instanceof Error ? err.message : 'Failed to reload data')
@@ -657,15 +773,18 @@ function applyDashboardData(
   nextLeads: Lead[] | null | undefined,
   nextProperties: Property[] | null | undefined,
   nextBrokers: Broker[] | null | undefined,
+  nextCalls: Call[] | null | undefined,
   setLeads: (value: Lead[]) => void,
   setProperties: (value: Property[]) => void,
   setBrokers: (value: Broker[]) => void,
+  setCalls: (value: Call[]) => void,
   setSelectedLeadID?: (value: number | null) => void,
 ) {
   const safeLeads = asArray(nextLeads)
   setLeads(safeLeads)
   setProperties(asArray(nextProperties))
   setBrokers(asArray(nextBrokers))
+  setCalls(asArray(nextCalls))
   setSelectedLeadID?.(safeLeads[0]?.id ?? null)
 }
 
@@ -774,6 +893,37 @@ function parseQualification(value: string): Array<[string, string]> {
   }
 }
 
+function parseCallDetails(value: string): Array<[string, string]> {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf(':')
+      if (separatorIndex === -1) {
+        return ['details', line] as [string, string]
+      }
+      return [line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1).trim()] as [string, string]
+    })
+    .filter(([, item]) => item !== '')
+}
+
+function formatCallDetailValue(value: string) {
+  if (!value.startsWith('{')) {
+    return humanizeValue(value)
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return Object.entries(parsed)
+      .filter(([, item]) => item !== null && item !== undefined && item !== '')
+      .map(([key, item]) => `${humanizeValue(key)}: ${String(item)}`)
+      .join(', ')
+  } catch {
+    return value
+  }
+}
+
 function humanizeValue(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
@@ -810,6 +960,18 @@ function propertyStatus(property: Property): PropertyStatus {
 
 function propertyType(property: Property): string {
   return enumValue(property.type, 'شقة', ['property_type', 'PropertyType', 'type'])
+}
+
+function callOutcome(call: Call): CallOutcome {
+  return enumChoice(call.outcome, ['follow_up', 'qualified', 'closed', 'unqualified', 'no_answer'], 'follow_up')
+}
+
+function callSentiment(call: Call): string {
+  return humanizeValue(enumChoice(call.sentiment, ['positive', 'negative', 'neutral'], 'neutral'))
+}
+
+function callOutcomeClass(outcome: CallOutcome) {
+  return outcome === 'follow_up' ? 'follow_up' : outcome
 }
 
 function enumChoice<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -866,6 +1028,33 @@ function areaLabel(value: unknown) {
     return 'No area'
   }
   return `${valueLabel(value)} sqm`
+}
+
+function numberValue(value: NullableNumber | number | null | undefined) {
+  if (typeof value === 'number') {
+    return value
+  }
+  if (!value) {
+    return 0
+  }
+  const valid = value.Valid ?? value.valid ?? true
+  if (!valid) {
+    return 0
+  }
+  return value.Int32 ?? value.Int64 ?? value.int32 ?? value.int64 ?? 0
+}
+
+function durationLabel(value: NullableNumber | number | null | undefined) {
+  const seconds = numberValue(value)
+  if (seconds <= 0) {
+    return 'No duration'
+  }
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`
 }
 
 function dateLabel(value?: string) {

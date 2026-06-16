@@ -16,6 +16,7 @@ type mockQueries struct {
 	lead                         db.Lead
 	leads                        []db.Lead
 	call                         db.Call
+	calls                        []db.Call
 	property                     db.Property
 	properties                   []db.Property
 	propertyEmbedding            db.PropertyEmbedding
@@ -124,7 +125,7 @@ func (m *mockQueries) ListBrokers(ctx context.Context, tenantID pgtype.UUID) ([]
 	return m.brokers, m.err
 }
 func (m *mockQueries) ListCalls(ctx context.Context, tenantID pgtype.UUID) ([]db.Call, error) {
-	return nil, nil
+	return m.calls, m.err
 }
 func (m *mockQueries) ListCallsByLead(ctx context.Context, arg db.ListCallsByLeadParams) ([]db.Call, error) {
 	return nil, nil
