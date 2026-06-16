@@ -356,12 +356,12 @@ function App() {
                 {brokers.length === 0 && <EmptyState message="No brokers found for this tenant." />}
                 {brokers.map((broker) => (
                   <article className="broker-card" key={broker.id}>
-                    <span>{broker.username.slice(0, 2).toUpperCase()}</span>
+                    <span className="broker-avatar">{broker.username.slice(0, 2).toUpperCase()}</span>
                     <div>
                       <strong>{broker.username}</strong>
-                      <small>{broker.email} · {broker.role}</small>
+                      <small>{broker.email}</small>
                     </div>
-                    <b>#{broker.id}</b>
+                    <span className={`role-badge ${broker.role}`}>{broker.role}</span>
                   </article>
                 ))}
               </div>

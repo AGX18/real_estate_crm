@@ -111,7 +111,7 @@
 }
 
 .brand-mark,
-.broker-card > span {
+.broker-avatar {
   width: 42px;
   height: 42px;
   display: grid;
@@ -568,7 +568,7 @@ dt {
   border-bottom: 0;
 }
 
-.broker-card > span {
+.broker-avatar {
   flex: 0 0 42px;
   color: #ffffff;
   background: #315a7a;
@@ -581,6 +581,24 @@ dt {
 
 .broker-card b {
   color: #246b4b;
+}
+
+.role-badge {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.role-badge.admin {
+  color: #195737;
+  background: #d8f1df;
+}
+
+.role-badge.user {
+  color: #315a7a;
+  background: #dbeaf7;
 }
 
 .broker-form {
