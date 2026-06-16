@@ -39,10 +39,69 @@ type propertyRequest struct {
 	Embedding   []float32         `json:"embedding"`
 }
 
+func (p *propertyRequest) UnmarshalJSON(data []byte) error {
+	type propertyRequestAlias propertyRequest
+	var body struct {
+		propertyRequestAlias
+		Price            json.RawMessage `json:"price"`
+		AreaSqm          json.RawMessage `json:"area_sqm"`
+		Project          string          `json:"project"`
+		CapitalizedGov   string          `json:"Governorate"`
+		CapitalizedGovAR string          `json:"المحافظة"`
+	}
+	if err := json.Unmarshal(data, &body); err != nil {
+		return err
+	}
+
+	*p = propertyRequest(body.propertyRequestAlias)
+
+	price, err := jsonScalarString(body.Price)
+	if err != nil {
+		return fmt.Errorf("invalid price")
+	}
+	areaSqm, err := jsonScalarString(body.AreaSqm)
+	if err != nil {
+		return fmt.Errorf("invalid area_sqm")
+	}
+	p.Price = price
+	p.AreaSqm = areaSqm
+
+	if p.Location == "" {
+		p.Location = body.Project
+	}
+	if p.Governorate == "" {
+		p.Governorate = body.CapitalizedGov
+	}
+	if p.Governorate == "" {
+		p.Governorate = body.CapitalizedGovAR
+	}
+
+	return nil
+}
+
 type searchRequest struct {
 	Embedding []float32 `json:"embedding"`
 	Query     string    `json:"query"`
 	Limit     int32     `json:"limit"`
+}
+
+func jsonScalarString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return value, nil
+	}
+
+	var number json.Number
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&number); err != nil {
+		return "", err
+	}
+	return number.String(), nil
 }
 
 type importRequest struct {
@@ -341,6 +400,7 @@ func createParams(tenantID pgtype.UUID, body propertyRequest) (db.CreateProperty
 	if body.Bedrooms < 0 || body.Bathrooms < 0 {
 		return db.CreatePropertyParams{}, "", fmt.Errorf("bedrooms and bathrooms cannot be negative")
 	}
+	body.Type = normalizePropertyType(body.Type)
 	if body.Type == "" {
 		body.Type = db.PropertyTypeValue1
 	}
@@ -371,6 +431,15 @@ func createParams(tenantID pgtype.UUID, body propertyRequest) (db.CreateProperty
 		Status:      propertyStatusParam(body.Status),
 	}
 	return params, embeddingContent(body), nil
+}
+
+func normalizePropertyType(value db.PropertyType) db.PropertyType {
+	switch strings.TrimSpace(string(value)) {
+	case "فیلا":
+		return db.PropertyTypeValue5
+	default:
+		return value
+	}
 }
 
 func updateParams(tenantID pgtype.UUID, propertyID int64, body propertyRequest) (db.UpdatePropertyParams, string, error) {

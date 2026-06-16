@@ -206,6 +206,49 @@ func TestImportPropertiesWrappedFile(t *testing.T) {
 	}
 }
 
+func TestImportPropertiesAcceptsTestDataShape(t *testing.T) {
+	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 4, Bathrooms: 4}}
+	s := newTestServer(mock)
+	r := newPropertyTestRouter(s)
+
+	body, contentType := propertiesImportBody(t, "test_data.json", `[
+		{
+			"description":"خصم 20% على فيلا توين هاوس متشطبة",
+			"price":15000000,
+			"area_sqm":212,
+			"type":"فیلا",
+			"project":"كومباوند ازار",
+			"city":"التجمع الخامس",
+			"Governorate":"القاهرة",
+			"bedrooms":4,
+			"bathrooms":4
+		}
+	]`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if !mock.createPropertyArg.Price.Valid {
+		t.Fatal("expected numeric price to be accepted")
+	}
+	if !mock.createPropertyArg.AreaSqm.Valid {
+		t.Fatal("expected numeric area_sqm to be accepted")
+	}
+	if mock.createPropertyArg.Type.PropertyType != db.PropertyTypeValue5 {
+		t.Fatalf("expected Persian Yeh villa spelling to normalize to %q got %q", db.PropertyTypeValue5, mock.createPropertyArg.Type.PropertyType)
+	}
+	if !mock.createPropertyArg.Location.Valid || mock.createPropertyArg.Location.String != "كومباوند ازار" {
+		t.Fatalf("expected project to map to location got %+v", mock.createPropertyArg.Location)
+	}
+	if !mock.createPropertyArg.Governorate.Valid || mock.createPropertyArg.Governorate.String != "القاهرة" {
+		t.Fatalf("expected capitalized Governorate to map to governorate got %+v", mock.createPropertyArg.Governorate)
+	}
+}
+
 func TestListProperties(t *testing.T) {
 	mock := &mockQueries{
 		properties: []db.Property{
