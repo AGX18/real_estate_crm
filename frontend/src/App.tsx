@@ -689,8 +689,9 @@ function LeadDescriptionDetails({ lead }: { lead: Lead }) {
 function CallCard({ call, leads }: { call: Call; leads: Lead[] }) {
   const outcome = callOutcome(call)
   const lead = leads.find((item) => item.id === numberValue(call.lead_id))
-  const summary = textValue(call.summary)
-  const details = parseCallDetails(textValue(call.details))
+  const rawSummary = textValue(call.summary)
+  const summary = callSummaryText(rawSummary)
+  const details = [...parseCallDetails(textValue(call.details)), ...parseStructuredCallSummary(rawSummary)]
   const transcript = textValue(call.transcript)
 
   return (
@@ -906,6 +907,37 @@ function parseCallDetails(value: string): Array<[string, string]> {
       return [line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1).trim()] as [string, string]
     })
     .filter(([, item]) => item !== '')
+}
+
+function parseStructuredCallSummary(value: string): Array<[string, string]> {
+  const labels = /(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:/gi
+  const matches = [...value.matchAll(labels)]
+  if (matches.length === 0) {
+    return []
+  }
+
+  return matches
+    .map((match, index) => {
+      const start = (match.index ?? 0) + match[0].length
+      const end = matches[index + 1]?.index ?? value.length
+      return [normalizeDetailKey(match[1]), value.slice(start, end).trim()] as [string, string]
+    })
+    .filter(([, item]) => item !== '' && !item.toLowerCase().startsWith('assistant:'))
+}
+
+function callSummaryText(value: string) {
+  const fields = Object.fromEntries(parseStructuredCallSummary(value))
+  if (Object.keys(fields).length === 0) {
+    return value
+  }
+
+  const outcome = fields.call_outcome ? humanizeValue(fields.call_outcome) : 'Call'
+  const phone = fields.phone_number ?? fields.phone
+  return phone ? `${outcome} from ${phone}` : outcome
+}
+
+function normalizeDetailKey(value: string) {
+  return value.trim().toLowerCase().replaceAll(' ', '_')
 }
 
 function formatCallDetailValue(value: string) {

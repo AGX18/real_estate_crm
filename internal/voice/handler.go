@@ -20,19 +20,51 @@ type Handler struct {
 }
 
 type createCallRequest struct {
-	Summary  *agentSummary  `json:"summary"`
-	Timeline []timelineItem `json:"timeline"`
-	Turns    []turnItem     `json:"turns"`
+	Summary     *agentSummary  `json:"summary"`
+	SummaryText string         `json:"-"`
+	Timeline    []timelineItem `json:"timeline"`
+	Turns       []turnItem     `json:"turns"`
 
 	Phone        string           `json:"phone"`
+	PhoneNumber  string           `json:"phone_number"`
 	Description  string           `json:"description"`
 	Status       db.LeadStatus    `json:"status"`
+	LeadStatus   db.LeadStatus    `json:"lead_status"`
 	Transcript   string           `json:"transcript"`
 	Details      string           `json:"details"`
 	CallSummary  string           `json:"call_summary"`
 	Sentiment    db.CallSentiment `json:"sentiment"`
 	Outcome      db.CallOutcome   `json:"outcome"`
 	DurationSecs int32            `json:"duration_secs"`
+}
+
+func (r *createCallRequest) UnmarshalJSON(data []byte) error {
+	type requestAlias createCallRequest
+	var body struct {
+		requestAlias
+		Summary json.RawMessage `json:"summary"`
+	}
+	if err := json.Unmarshal(data, &body); err != nil {
+		return err
+	}
+
+	*r = createCallRequest(body.requestAlias)
+	if len(body.Summary) == 0 || string(body.Summary) == "null" {
+		return nil
+	}
+
+	var summaryText string
+	if err := json.Unmarshal(body.Summary, &summaryText); err == nil {
+		r.SummaryText = summaryText
+		return nil
+	}
+
+	var summary agentSummary
+	if err := json.Unmarshal(body.Summary, &summary); err != nil {
+		return err
+	}
+	r.Summary = &summary
+	return nil
 }
 
 type agentSummary struct {
@@ -134,34 +166,79 @@ func decodeCreateCallRequest(r *http.Request) (createCallRequest, error) {
 }
 
 func (r createCallRequest) toParams(tenantID pgtype.UUID) CreateCallParams {
-	status := r.Status
+	status := firstLeadStatus(r.Status, r.LeadStatus)
 	outcome := r.Outcome
 	sentiment := r.Sentiment
 	durationSecs := r.DurationSecs
-	phone := r.Phone
+	phone := normalizePhone(firstNonEmpty(r.Phone, r.PhoneNumber))
 	description := r.Description
 	transcript := r.Transcript
 	details := r.Details
-	summary := r.CallSummary
+	summary := firstNonEmpty(r.CallSummary, r.SummaryText)
+	var structured structuredSummary
+
+	if r.Summary != nil {
+		structured = parseStructuredSummary(r.Summary.Summary)
+	}
+	if details != "" {
+		detailsStructured := parseStructuredSummary(details)
+		if len(detailsStructured.Fields) > 0 {
+			structured = detailsStructured
+		}
+	}
+	if len(structured.Fields) == 0 && summary != "" {
+		structured = parseStructuredSummary(summary)
+	}
+	if phone == "" {
+		phone = normalizePhone(firstNonEmpty(structured.Fields["phone number"], structured.Fields["phone"]))
+	}
+	if status == "" {
+		if value := firstNonEmpty(string(r.LeadStatus), string(r.Outcome), structured.Fields["call outcome"]); value != "" {
+			status = normalizeLeadStatus(value)
+		}
+	}
+	if outcome == "" {
+		if value := firstNonEmpty(string(r.Status), string(r.LeadStatus), structured.Fields["call outcome"]); value != "" {
+			outcome = normalizeCallOutcome(value)
+		}
+	}
+	if sentiment == "" {
+		if value := structured.Fields["sentiment"]; value != "" {
+			sentiment = normalizeCallSentiment(value)
+		}
+	}
+	if description == "" && len(structured.Fields) > 0 {
+		description = structuredLeadDescription(structured)
+	}
+	if len(structured.Fields) > 0 {
+		summary = conciseCallSummary(phone, outcome, sentiment)
+		details = mergeDetails(structuredDetails(structured), detailsWithoutAssistantPrompts(details))
+	}
 
 	if r.Summary != nil {
 		if phone == "" && r.Summary.Phone != nil {
 			phone = normalizePhone(*r.Summary.Phone)
 		}
+		if phone == "" {
+			phone = normalizePhone(firstNonEmpty(structured.Fields["phone number"], structured.Fields["phone"]))
+		}
 		if description == "" {
 			description = leadDescription(*r.Summary)
+			if isStructuredSummary(description) {
+				description = structuredLeadDescription(structured)
+			}
 		}
 		if summary == "" {
-			summary = firstNonEmpty(r.Summary.LLMSummary, r.Summary.Summary)
+			summary = firstNonEmpty(r.Summary.LLMSummary, structuredCallSummary(structured), r.Summary.Summary)
 		}
 		if status == "" {
-			status = normalizeLeadStatus(firstNonEmpty(r.Summary.Classification, r.Summary.CallOutcome, r.Summary.OverallIntent))
+			status = normalizeLeadStatus(firstNonEmpty(r.Summary.Classification, r.Summary.CallOutcome, structured.Fields["call outcome"], r.Summary.OverallIntent))
 		}
 		if outcome == "" {
-			outcome = normalizeCallOutcome(firstNonEmpty(r.Summary.Classification, r.Summary.CallOutcome, r.Summary.OverallIntent))
+			outcome = normalizeCallOutcome(firstNonEmpty(r.Summary.Classification, r.Summary.CallOutcome, structured.Fields["call outcome"], r.Summary.OverallIntent))
 		}
 		if sentiment == "" {
-			sentiment = normalizeCallSentiment(r.Summary.DominantEmotion)
+			sentiment = normalizeCallSentiment(firstNonEmpty(r.Summary.DominantEmotion, structured.Fields["sentiment"]))
 		}
 		if durationSecs == 0 {
 			durationSecs = r.Summary.CallDurationS
@@ -175,7 +252,7 @@ func (r createCallRequest) toParams(tenantID pgtype.UUID) CreateCallParams {
 		transcript = buildTranscript(r.Turns)
 	}
 	if details == "" {
-		details = buildDetails(r.Summary, r.Timeline)
+		details = mergeDetails(structuredDetails(structured), buildDetails(r.Summary, r.Timeline))
 	}
 	if status == "" {
 		status = db.LeadStatusFollowUp
@@ -219,6 +296,160 @@ func leadDescription(summary agentSummary) string {
 		return summary.Summary
 	}
 	return strings.Join(parts, "\n")
+}
+
+type structuredSummary struct {
+	Fields map[string]string
+}
+
+func parseStructuredSummary(value string) structuredSummary {
+	fields := map[string]string{}
+	value = strings.TrimSpace(strings.ReplaceAll(value, "\r\n", "\n"))
+	if value == "" {
+		return structuredSummary{Fields: fields}
+	}
+
+	labelPattern := regexp.MustCompile(`(?i)(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:`)
+	matches := labelPattern.FindAllStringSubmatchIndex(value, -1)
+	for index, match := range matches {
+		label := strings.ToLower(strings.TrimSpace(value[match[2]:match[3]]))
+		start := match[1]
+		end := len(value)
+		if index+1 < len(matches) {
+			end = matches[index+1][0]
+		}
+		fieldValue := strings.TrimSpace(value[start:end])
+		fieldValue = strings.Trim(fieldValue, "\n\t ")
+		if fieldValue != "" {
+			fields[label] = fieldValue
+		}
+	}
+
+	return structuredSummary{Fields: fields}
+}
+
+func isStructuredSummary(value string) bool {
+	return len(parseStructuredSummary(value).Fields) > 0
+}
+
+func structuredCallSummary(summary structuredSummary) string {
+	if len(summary.Fields) == 0 {
+		return ""
+	}
+
+	outcome := humanize(firstNonEmpty(summary.Fields["call outcome"], "call"))
+	phone := firstNonEmpty(summary.Fields["phone number"], summary.Fields["phone"])
+	if phone != "" {
+		return fmt.Sprintf("%s from %s.", outcome, normalizePhone(phone))
+	}
+	return outcome + "."
+}
+
+func conciseCallSummary(phone string, outcome db.CallOutcome, sentiment db.CallSentiment) string {
+	summary := "Call"
+	if outcome != "" {
+		summary = humanize(string(outcome)) + " call"
+	}
+	if phone != "" {
+		summary += " with " + phone
+	}
+	if sentiment != "" {
+		summary += ". Sentiment " + string(sentiment)
+	}
+	return summary + "."
+}
+
+func structuredLeadDescription(summary structuredSummary) string {
+	parts := []string{}
+	qualification := map[string]string{}
+	for _, key := range []string{"budget", "rooms", "location", "property type"} {
+		value := meaningfulStructuredValue(summary.Fields[key])
+		if value != "" {
+			qualification[key] = value
+		}
+	}
+	if len(qualification) > 0 {
+		data, err := json.Marshal(qualification)
+		if err == nil {
+			parts = append(parts, "Qualification: "+string(data))
+		}
+	}
+	if outcome := meaningfulStructuredValue(summary.Fields["call outcome"]); outcome != "" {
+		parts = append(parts, "Intent: "+outcome)
+	}
+	if len(parts) == 0 {
+		return structuredCallSummary(summary)
+	}
+	parts = append(parts, structuredCallSummary(summary))
+	return strings.Join(parts, "\n")
+}
+
+func structuredDetails(summary structuredSummary) string {
+	if len(summary.Fields) == 0 {
+		return ""
+	}
+
+	parts := []string{}
+	for _, key := range []string{"budget", "rooms", "location", "property type", "sentiment", "call outcome"} {
+		value := meaningfulStructuredValue(summary.Fields[key])
+		if value != "" {
+			parts = append(parts, strings.ReplaceAll(key, " ", "_")+": "+value)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func meaningfulStructuredValue(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(strings.ToLower(value), "assistant:") {
+		return ""
+	}
+	return value
+}
+
+func detailsWithoutAssistantPrompts(value string) string {
+	if isStructuredSummary(value) {
+		return ""
+	}
+	lines := []string{}
+	for _, line := range strings.Split(value, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.Contains(strings.ToLower(line), ": assistant:") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func mergeDetails(values ...string) string {
+	parts := []string{}
+	for _, value := range values {
+		for _, line := range strings.Split(value, "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				parts = append(parts, line)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func firstLeadStatus(values ...db.LeadStatus) db.LeadStatus {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func humanize(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "_", " "))
+	if value == "" {
+		return ""
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
 }
 
 func buildTranscript(turns []turnItem) string {
