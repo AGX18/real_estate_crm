@@ -81,6 +81,7 @@ func (s *Server) registerPropertyRoutes(r chi.Router) {
 
 func (s *Server) registerVoiceRoutes(r chi.Router) {
 	r.Post("/tenants/{tenant_id}/calls", s.voiceHandler.CreateCall)
+	r.Post("/v2/tenants/{tenant_id}/calls", s.voiceHandler.CreateCallV2)
 	r.Get("/tenants/{tenant_id}/calls", s.voiceHandler.ListCalls)
 }
 

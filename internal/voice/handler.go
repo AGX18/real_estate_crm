@@ -38,6 +38,17 @@ type createCallRequest struct {
 	DurationSecs int32            `json:"duration_secs"`
 }
 
+type createCallV2Request struct {
+	PhoneNumber  *string
+	LeadStatus   db.LeadStatus
+	Outcome      db.CallOutcome
+	Sentiment    db.CallSentiment
+	DurationSecs int32
+	Transcript   string
+	Details      string
+	CallSummary  string
+}
+
 func (r *createCallRequest) UnmarshalJSON(data []byte) error {
 	type requestAlias createCallRequest
 	var body struct {
@@ -134,6 +145,38 @@ func (h *Handler) CreateCall(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, result)
 }
 
+func (h *Handler) CreateCallV2(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		return
+	}
+
+	body, err := decodeCreateCallV2Request(r)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := body.toParams(tenantID)
+	if params.Phone == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "phone_number is required")
+		return
+	}
+	if !validPhone(params.Phone) {
+		httpx.WriteError(w, http.StatusBadRequest, "phone_number is invalid")
+		return
+	}
+
+	result, err := h.service.CreateCall(r.Context(), params)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create call")
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusCreated, result)
+}
+
 func (h *Handler) ListCalls(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
@@ -163,6 +206,71 @@ func decodeCreateCallRequest(r *http.Request) (createCallRequest, error) {
 		return createCallRequest{}, err
 	}
 	return body, nil
+}
+
+func decodeCreateCallV2Request(r *http.Request) (createCallV2Request, error) {
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return createCallV2Request{}, fmt.Errorf("invalid request body")
+	}
+	if err := validateExactV2Keys(fields); err != nil {
+		return createCallV2Request{}, err
+	}
+
+	phoneNumber, err := nullableStringField(fields, "phone_number")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	leadStatus, err := leadStatusField(fields, "lead_status")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	outcome, err := callOutcomeField(fields, "outcome")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	if err := validateV2StatusOutcome(leadStatus, outcome); err != nil {
+		return createCallV2Request{}, err
+	}
+	sentiment, err := callSentimentField(fields, "sentiment")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	durationSecs, err := nullableInt32Field(fields, "duration_secs")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	transcript, err := requiredStringField(fields, "transcript")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	details, err := requiredStringField(fields, "details")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+	if err := validateV2Details(details); err != nil {
+		return createCallV2Request{}, err
+	}
+	callSummary, err := requiredStringField(fields, "call_summary")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
+
+	return createCallV2Request{
+		PhoneNumber:  phoneNumber,
+		LeadStatus:   leadStatus,
+		Outcome:      outcome,
+		Sentiment:    sentiment,
+		DurationSecs: durationSecs,
+		Transcript:   transcript,
+		Details:      details,
+		CallSummary:  callSummary,
+	}, nil
 }
 
 func (r createCallRequest) toParams(tenantID pgtype.UUID) CreateCallParams {
@@ -275,6 +383,26 @@ func (r createCallRequest) toParams(tenantID pgtype.UUID) CreateCallParams {
 	}
 }
 
+func (r createCallV2Request) toParams(tenantID pgtype.UUID) CreateCallParams {
+	phone := ""
+	if r.PhoneNumber != nil {
+		phone = normalizePhone(*r.PhoneNumber)
+	}
+
+	return CreateCallParams{
+		TenantID:     tenantID,
+		Phone:        phone,
+		Description:  structuredLeadDescriptionWithoutSummary(parseStructuredSummaryWithIntent(r.Details)),
+		Status:       r.LeadStatus,
+		Transcript:   r.Transcript,
+		Details:      r.Details,
+		Summary:      r.CallSummary,
+		Sentiment:    r.Sentiment,
+		Outcome:      r.Outcome,
+		DurationSecs: r.DurationSecs,
+	}
+}
+
 func leadDescription(summary agentSummary) string {
 	parts := []string{}
 	if summary.ClientName != "" {
@@ -303,13 +431,21 @@ type structuredSummary struct {
 }
 
 func parseStructuredSummary(value string) structuredSummary {
+	return parseStructuredSummaryWithLabels(value, `(?i)(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:`)
+}
+
+func parseStructuredSummaryWithIntent(value string) structuredSummary {
+	return parseStructuredSummaryWithLabels(value, `(?i)(phone number|phone|budget|rooms|location|property type|intent|sentiment|call outcome)\s*:`)
+}
+
+func parseStructuredSummaryWithLabels(value string, labels string) structuredSummary {
 	fields := map[string]string{}
 	value = strings.TrimSpace(strings.ReplaceAll(value, "\r\n", "\n"))
 	if value == "" {
 		return structuredSummary{Fields: fields}
 	}
 
-	labelPattern := regexp.MustCompile(`(?i)(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:`)
+	labelPattern := regexp.MustCompile(labels)
 	matches := labelPattern.FindAllStringSubmatchIndex(value, -1)
 	for index, match := range matches {
 		label := strings.ToLower(strings.TrimSpace(value[match[2]:match[3]]))
@@ -371,7 +507,9 @@ func structuredLeadDescription(summary structuredSummary) string {
 			parts = append(parts, "Qualification: "+string(data))
 		}
 	}
-	if outcome := meaningfulStructuredValue(summary.Fields["call outcome"]); outcome != "" {
+	if intent := meaningfulStructuredValue(summary.Fields["intent"]); intent != "" {
+		parts = append(parts, "Intent: "+intent)
+	} else if outcome := meaningfulStructuredValue(summary.Fields["call outcome"]); outcome != "" {
 		parts = append(parts, "Intent: "+outcome)
 	}
 	if len(parts) == 0 {
@@ -379,6 +517,22 @@ func structuredLeadDescription(summary structuredSummary) string {
 	}
 	parts = append(parts, structuredCallSummary(summary))
 	return strings.Join(parts, "\n")
+}
+
+func structuredLeadDescriptionWithoutSummary(summary structuredSummary) string {
+	description := structuredLeadDescription(summary)
+	summaryLine := structuredCallSummary(summary)
+	if summaryLine == "" {
+		return description
+	}
+
+	lines := []string{}
+	for _, line := range strings.Split(description, "\n") {
+		if strings.TrimSpace(line) != summaryLine {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func structuredDetails(summary structuredSummary) string {
@@ -525,6 +679,10 @@ func normalizePhone(value string) string {
 	return replacer.Replace(value)
 }
 
+func validPhone(value string) bool {
+	return regexp.MustCompile(`^\+?[0-9]{7,15}$`).MatchString(value)
+}
+
 func normalizeLeadStatus(value string) db.LeadStatus {
 	switch strings.ToLower(value) {
 	case "qualified":
@@ -564,6 +722,152 @@ func normalizeCallSentiment(value string) db.CallSentiment {
 	default:
 		return ""
 	}
+}
+
+func validateExactV2Keys(fields map[string]json.RawMessage) error {
+	expected := map[string]struct{}{
+		"phone_number":  {},
+		"lead_status":   {},
+		"outcome":       {},
+		"sentiment":     {},
+		"duration_secs": {},
+		"transcript":    {},
+		"details":       {},
+		"call_summary":  {},
+	}
+	if len(fields) != len(expected) {
+		return fmt.Errorf("request body must contain exactly the v2 call keys")
+	}
+	for key := range expected {
+		if _, ok := fields[key]; !ok {
+			return fmt.Errorf("%s is required", key)
+		}
+	}
+	for key := range fields {
+		if _, ok := expected[key]; !ok {
+			return fmt.Errorf("%s is not allowed", key)
+		}
+	}
+	return nil
+}
+
+func nullableStringField(fields map[string]json.RawMessage, key string) (*string, error) {
+	if string(fields[key]) == "null" {
+		return nil, nil
+	}
+	var value string
+	if err := json.Unmarshal(fields[key], &value); err != nil {
+		return nil, fmt.Errorf("%s must be a string or null", key)
+	}
+	return &value, nil
+}
+
+func requiredStringField(fields map[string]json.RawMessage, key string) (string, error) {
+	if string(fields[key]) == "null" {
+		return "", fmt.Errorf("%s must be a string", key)
+	}
+	var value string
+	if err := json.Unmarshal(fields[key], &value); err != nil {
+		return "", fmt.Errorf("%s must be a string", key)
+	}
+	if strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return value, nil
+}
+
+func nullableInt32Field(fields map[string]json.RawMessage, key string) (int32, error) {
+	if string(fields[key]) == "null" {
+		return 0, nil
+	}
+	var value int32
+	if err := json.Unmarshal(fields[key], &value); err != nil {
+		return 0, fmt.Errorf("%s must be an integer or null", key)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("%s cannot be negative", key)
+	}
+	return value, nil
+}
+
+func leadStatusField(fields map[string]json.RawMessage, key string) (db.LeadStatus, error) {
+	value, err := requiredStringField(fields, key)
+	if err != nil {
+		return "", err
+	}
+	switch db.LeadStatus(value) {
+	case db.LeadStatusFollowUp, db.LeadStatusQualified, db.LeadStatusClosed, db.LeadStatusUnqualified:
+		return db.LeadStatus(value), nil
+	default:
+		return "", fmt.Errorf("%s must be one of Follow_Up, qualified, closed, unqualified", key)
+	}
+}
+
+func callOutcomeField(fields map[string]json.RawMessage, key string) (db.CallOutcome, error) {
+	value, err := requiredStringField(fields, key)
+	if err != nil {
+		return "", err
+	}
+	switch db.CallOutcome(value) {
+	case db.CallOutcomeFollowUp, db.CallOutcomeQualified, db.CallOutcomeClosed, db.CallOutcomeUnqualified, db.CallOutcomeNoAnswer:
+		return db.CallOutcome(value), nil
+	default:
+		return "", fmt.Errorf("%s must be one of follow_up, qualified, closed, unqualified, no_answer", key)
+	}
+}
+
+func callSentimentField(fields map[string]json.RawMessage, key string) (db.CallSentiment, error) {
+	value, err := requiredStringField(fields, key)
+	if err != nil {
+		return "", err
+	}
+	switch db.CallSentiment(value) {
+	case db.CallSentimentPositive, db.CallSentimentNegative, db.CallSentimentNeutral:
+		return db.CallSentiment(value), nil
+	default:
+		return "", fmt.Errorf("%s must be one of positive, negative, neutral", key)
+	}
+}
+
+func validateV2StatusOutcome(status db.LeadStatus, outcome db.CallOutcome) error {
+	expected := map[db.CallOutcome]db.LeadStatus{
+		db.CallOutcomeFollowUp:    db.LeadStatusFollowUp,
+		db.CallOutcomeQualified:   db.LeadStatusQualified,
+		db.CallOutcomeClosed:      db.LeadStatusClosed,
+		db.CallOutcomeUnqualified: db.LeadStatusUnqualified,
+		db.CallOutcomeNoAnswer:    db.LeadStatusUnqualified,
+	}
+	if status != expected[outcome] {
+		return fmt.Errorf("lead_status must match outcome")
+	}
+	return nil
+}
+
+func validateV2Details(value string) error {
+	requiredLabels := []string{
+		"Phone number",
+		"Budget",
+		"Rooms",
+		"Location",
+		"Property type",
+		"Intent",
+		"Sentiment",
+		"Call outcome",
+	}
+	found := map[string]bool{}
+	for _, line := range strings.Split(value, "\n") {
+		label, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		found[strings.TrimSpace(label)] = true
+	}
+	for _, label := range requiredLabels {
+		if !found[label] {
+			return fmt.Errorf("details must include %s", label)
+		}
+	}
+	return nil
 }
 
 func firstNonEmpty(values ...string) string {

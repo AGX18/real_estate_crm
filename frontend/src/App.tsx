@@ -91,6 +91,14 @@ type NullableValue<T extends string> = {
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error'
+type Page = 'dashboard' | 'leads' | 'properties' | 'calls' | 'brokers'
+type DashboardMetrics = {
+  qualified: number
+  followUps: number
+  available: number
+  closedInventory: number
+  qualifiedCalls: number
+}
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 const sessionKey = 'real_estate_crm_session'
@@ -116,6 +124,14 @@ const callOutcomeLabels: Record<CallOutcome, string> = {
   no_answer: 'No answer',
 }
 
+const pageTitles: Record<Page, string> = {
+  dashboard: 'Real estate command center',
+  leads: 'Leads',
+  properties: 'Properties',
+  calls: 'Calls',
+  brokers: 'Brokers',
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [leads, setLeads] = useState<Lead[]>([])
@@ -126,14 +142,26 @@ function App() {
   const [error, setError] = useState('')
   const [propertyFilter, setPropertyFilter] = useState<PropertyStatus | 'all'>('all')
   const [selectedLeadID, setSelectedLeadID] = useState<number | null>(null)
+  const [activePage, setActivePage] = useState<Page>(() => pageFromHash(window.location.hash))
 
   const isAdmin = session?.broker.role === 'admin'
+  const navItems: Page[] = ['dashboard', 'leads', 'properties', 'calls', ...(isAdmin ? (['brokers'] as Page[]) : [])]
+  const currentPage = activePage === 'brokers' && !isAdmin ? 'dashboard' : activePage
   const refreshDashboard = () => {
     if (!session) {
       return
     }
     reload(session, isAdmin, setLeads, setProperties, setBrokers, setCalls, setLoadState, setError, setSelectedLeadID)
   }
+
+  useEffect(() => {
+    function syncPage() {
+      setActivePage(pageFromHash(window.location.hash))
+    }
+
+    window.addEventListener('hashchange', syncPage)
+    return () => window.removeEventListener('hashchange', syncPage)
+  }, [])
 
   useEffect(() => {
     if (!session) {
@@ -244,9 +272,13 @@ function App() {
         </div>
 
         <nav className="nav-list">
-          {['Dashboard', 'Leads', 'Properties', 'Calls', ...(isAdmin ? ['Brokers'] : [])].map((item) => (
-            <a className={item === 'Dashboard' ? 'active' : ''} href={`#${item.toLowerCase()}`} key={item}>
-              {item}
+          {navItems.map((item) => (
+            <a
+              className={item === currentPage ? 'active' : ''}
+              href={`#${item}`}
+              key={item}
+            >
+              {pageTitles[item]}
             </a>
           ))}
         </nav>
@@ -264,169 +296,244 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">{session.tenantName}</p>
-            <h1>Real estate command center</h1>
+            <h1>{pageTitles[currentPage]}</h1>
           </div>
           <div className="topbar-actions">
-            {isAdmin && <PropertyImport session={session} onImported={refreshDashboard} />}
+            {isAdmin && currentPage === 'properties' && <PropertyImport session={session} onImported={refreshDashboard} />}
             <button className="secondary-button" onClick={refreshDashboard}>Refresh</button>
             <button className="secondary-button" onClick={handleLogout}>Logout</button>
           </div>
         </header>
 
-        <section className="hero-band">
-          <div className="hero-copy">
-            <p className="eyebrow">{isAdmin ? 'Admin workspace' : 'Broker workspace'}</p>
-            <h2>Manage tenant-scoped leads and property inventory from one dashboard.</h2>
-          </div>
-          <img src={heroImage} alt="CRM dashboard preview" />
-        </section>
-
         {loadState === 'error' && <p className="error-banner">{error}</p>}
         {loadState === 'loading' && <p className="loading-banner">Loading tenant data...</p>}
 
-        <section className="metrics-grid" aria-label="Business metrics">
-          <Metric label="Qualified leads" value={String(metrics.qualified)} trend="ready to move" />
-          <Metric label="Follow-ups" value={String(metrics.followUps)} trend="needs next action" />
-          <Metric label="Available units" value={String(metrics.available)} trend="open inventory" />
-          <Metric label="Qualified calls" value={String(metrics.qualifiedCalls)} trend="voice outcomes" />
-        </section>
+        {currentPage === 'dashboard' && (
+          <DashboardPage metrics={metrics} isAdmin={isAdmin} />
+        )}
 
-        <section className="content-grid">
-          <div className="panel pipeline-panel" id="leads">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Lead pipeline</p>
-                <h2>Leads</h2>
-              </div>
-            </div>
+        {currentPage === 'leads' && (
+          <LeadsPage
+            leads={leads}
+            selectedLead={selectedLead}
+            onSelectLead={setSelectedLeadID}
+          />
+        )}
 
-            <div className="lead-list">
-              {leads.length === 0 && <EmptyState message="No leads found for this tenant." />}
-              {leads.map((lead) => {
-                const description = leadDescription(lead)
-                return (
-                  <button
-                    className={`lead-card ${selectedLead?.id === lead.id ? 'selected' : ''}`}
-                    key={lead.id}
-                    onClick={() => setSelectedLeadID(lead.id)}
-                  >
-                    <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>{leadLabels[leadStatus(lead)]}</span>
-                    <strong>{lead.phone}</strong>
-                    <span>{description.summary || 'No description'}</span>
-                    <small>{dateLabel(lead.created_at)}</small>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+        {currentPage === 'properties' && (
+          <PropertiesPage
+            filteredProperties={filteredProperties}
+            propertyCounts={propertyCounts}
+            propertyFilter={propertyFilter}
+            onFilterChange={setPropertyFilter}
+          />
+        )}
 
-          <div className="panel detail-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Selected lead</p>
-                <h2>{selectedLead ? selectedLead.phone : 'No lead selected'}</h2>
-              </div>
-              {selectedLead && <span className={`badge ${leadStatusClass(leadStatus(selectedLead))}`}>{leadLabels[leadStatus(selectedLead)]}</span>}
-            </div>
-            {selectedLead ? (
-              <dl className="detail-list lead-detail-list">
-                <LeadDescriptionDetails lead={selectedLead} />
-                <div>
-                  <dt>Created</dt>
-                  <dd>{dateLabel(selectedLead.created_at)}</dd>
-                </div>
-              </dl>
-            ) : (
-              <EmptyState message="Select a lead to see details." />
-            )}
-          </div>
-        </section>
+        {currentPage === 'calls' && (
+          <CallsPage calls={calls} leads={leads} />
+        )}
 
-        <section className="content-grid inventory-grid" id="properties">
-          <div className="panel wide-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Property inventory</p>
-                <h2>Properties</h2>
-              </div>
-              <div className="filter-tabs" aria-label="Property filters">
-                {(['all', 'available', 'sold', 'rented'] as const).map((status) => (
-                  <button
-                    className={propertyFilter === status ? 'active' : ''}
-                    key={status}
-                    onClick={() => setPropertyFilter(status)}
-                  >
-                    {status} {propertyCounts[status]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="property-table">
-              {filteredProperties.length === 0 && <EmptyState message="No properties match this filter." />}
-              {filteredProperties.map((property) => (
-                <article className="property-row" key={property.id}>
-                  <div>
-                    <strong>{textValue(property.description) || `Property #${property.id}`}</strong>
-                    <span>{valueLabel(propertyType(property))} · {textValue(property.city) || 'No city'} · {textValue(property.location) || 'No location'}</span>
-                  </div>
-                  <div className="property-specs">
-                    <span>{property.bedrooms} bed</span>
-                    <span>{property.bathrooms} bath</span>
-                    <span>{areaLabel(property.area_sqm)}</span>
-                    <span>{propertyStatusLabels[propertyStatus(property)]}</span>
-                  </div>
-                  <strong>{priceLabel(property.price)}</strong>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          {isAdmin && (
-            <div className="panel" id="brokers">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Admin only</p>
-                  <h2>Brokers</h2>
-                </div>
-              </div>
-              <BrokerCreateForm
-                session={session}
-                onCreated={refreshDashboard}
-              />
-              <div className="broker-list">
-                {brokers.length === 0 && <EmptyState message="No brokers found for this tenant." />}
-                {brokers.map((broker) => (
-                  <article className="broker-card" key={broker.id}>
-                    <span className="broker-avatar">{broker.username.slice(0, 2).toUpperCase()}</span>
-                    <div>
-                      <strong>{broker.username}</strong>
-                      <small>{broker.email}</small>
-                    </div>
-                    <span className={`role-badge ${broker.role}`}>{broker.role}</span>
-                  </article>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="panel calls-panel" id="calls">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Voice activity</p>
-              <h2>Calls</h2>
-            </div>
-          </div>
-          <div className="calls-list">
-            {calls.length === 0 && <EmptyState message="No calls found for this tenant." />}
-            {calls.map((call) => (
-              <CallCard call={call} leads={leads} key={call.id} />
-            ))}
-          </div>
-        </section>
+        {currentPage === 'brokers' && isAdmin && (
+          <BrokersPage brokers={brokers} session={session} onCreated={refreshDashboard} />
+        )}
       </section>
     </main>
+  )
+}
+
+function DashboardPage({ metrics, isAdmin }: { metrics: DashboardMetrics; isAdmin: boolean }) {
+  return (
+    <>
+      <section className="hero-band">
+        <div className="hero-copy">
+          <p className="eyebrow">{isAdmin ? 'Admin workspace' : 'Broker workspace'}</p>
+          <h2>Review tenant performance, then open leads, properties, or calls from the sidebar.</h2>
+        </div>
+        <img src={heroImage} alt="CRM dashboard preview" />
+      </section>
+
+      <section className="metrics-grid" aria-label="Business metrics">
+        <Metric label="Qualified leads" value={String(metrics.qualified)} trend="ready to move" />
+        <Metric label="Follow-ups" value={String(metrics.followUps)} trend="needs next action" />
+        <Metric label="Available units" value={String(metrics.available)} trend="open inventory" />
+        <Metric label="Qualified calls" value={String(metrics.qualifiedCalls)} trend="voice outcomes" />
+      </section>
+    </>
+  )
+}
+
+function LeadsPage({
+  leads,
+  selectedLead,
+  onSelectLead,
+}: {
+  leads: Lead[]
+  selectedLead: Lead | undefined
+  onSelectLead: (value: number | null) => void
+}) {
+  return (
+    <section className="content-grid page-content">
+      <div className="panel pipeline-panel" id="leads">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Lead pipeline</p>
+            <h2>Leads</h2>
+          </div>
+        </div>
+
+        <div className="lead-list">
+          {leads.length === 0 && <EmptyState message="No leads found for this tenant." />}
+          {leads.map((lead) => {
+            const description = leadDescription(lead)
+            return (
+              <button
+                className={`lead-card ${selectedLead?.id === lead.id ? 'selected' : ''}`}
+                key={lead.id}
+                onClick={() => onSelectLead(lead.id)}
+              >
+                <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>{leadLabels[leadStatus(lead)]}</span>
+                <strong>{lead.phone}</strong>
+                <span>{description.summary || 'No description'}</span>
+                <small>{dateLabel(lead.created_at)}</small>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="panel detail-panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Selected lead</p>
+            <h2>{selectedLead ? selectedLead.phone : 'No lead selected'}</h2>
+          </div>
+          {selectedLead && <span className={`badge ${leadStatusClass(leadStatus(selectedLead))}`}>{leadLabels[leadStatus(selectedLead)]}</span>}
+        </div>
+        {selectedLead ? (
+          <dl className="detail-list lead-detail-list">
+            <LeadDescriptionDetails lead={selectedLead} />
+            <div>
+              <dt>Created</dt>
+              <dd>{dateLabel(selectedLead.created_at)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <EmptyState message="Select a lead to see details." />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function PropertiesPage({
+  filteredProperties,
+  propertyCounts,
+  propertyFilter,
+  onFilterChange,
+}: {
+  filteredProperties: Property[]
+  propertyCounts: Record<PropertyStatus | 'all', number>
+  propertyFilter: PropertyStatus | 'all'
+  onFilterChange: (value: PropertyStatus | 'all') => void
+}) {
+  return (
+    <section className="content-grid inventory-grid page-content" id="properties">
+      <div className="panel wide-panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Property inventory</p>
+            <h2>Properties</h2>
+          </div>
+          <div className="filter-tabs" aria-label="Property filters">
+            {(['all', 'available', 'sold', 'rented'] as const).map((status) => (
+              <button
+                className={propertyFilter === status ? 'active' : ''}
+                key={status}
+                onClick={() => onFilterChange(status)}
+              >
+                {status} {propertyCounts[status]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="property-table">
+          {filteredProperties.length === 0 && <EmptyState message="No properties match this filter." />}
+          {filteredProperties.map((property) => (
+            <article className="property-row" key={property.id}>
+              <div>
+                <strong>{textValue(property.description) || `Property #${property.id}`}</strong>
+                <span>{valueLabel(propertyType(property))} · {textValue(property.city) || 'No city'} · {textValue(property.location) || 'No location'}</span>
+              </div>
+              <div className="property-specs">
+                <span>{property.bedrooms} bed</span>
+                <span>{property.bathrooms} bath</span>
+                <span>{areaLabel(property.area_sqm)}</span>
+                <span>{propertyStatusLabels[propertyStatus(property)]}</span>
+              </div>
+              <strong>{priceLabel(property.price)}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CallsPage({ calls, leads }: { calls: Call[]; leads: Lead[] }) {
+  return (
+    <section className="panel calls-panel page-content" id="calls">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Voice activity</p>
+          <h2>Calls</h2>
+        </div>
+      </div>
+      <div className="calls-list">
+        {calls.length === 0 && <EmptyState message="No calls found for this tenant." />}
+        {calls.map((call) => (
+          <CallCard call={call} leads={leads} key={call.id} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function BrokersPage({
+  brokers,
+  session,
+  onCreated,
+}: {
+  brokers: Broker[]
+  session: Session
+  onCreated: () => void
+}) {
+  return (
+    <section className="panel page-content" id="brokers">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Admin only</p>
+          <h2>Brokers</h2>
+        </div>
+      </div>
+      <BrokerCreateForm
+        session={session}
+        onCreated={onCreated}
+      />
+      <div className="broker-list">
+        {brokers.length === 0 && <EmptyState message="No brokers found for this tenant." />}
+        {brokers.map((broker) => (
+          <article className="broker-card" key={broker.id}>
+            <span className="broker-avatar">{broker.username.slice(0, 2).toUpperCase()}</span>
+            <div>
+              <strong>{broker.username}</strong>
+              <small>{broker.email}</small>
+            </div>
+            <span className={`role-badge ${broker.role}`}>{broker.role}</span>
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -793,6 +900,11 @@ function asArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : []
 }
 
+function pageFromHash(hash: string): Page {
+  const page = hash.replace('#', '').toLowerCase()
+  return ['leads', 'properties', 'calls', 'brokers'].includes(page) ? page as Page : 'dashboard'
+}
+
 async function apiGet<T>(path: string, token: string): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -869,14 +981,18 @@ function parseLeadDescription(value: string): {
   const qualificationLine = lines.find((line) => line.startsWith('Qualification:'))
   const intentLine = lines.find((line) => line.startsWith('Intent:'))
   const summaryLines = lines.filter(
-    (line) => !line.startsWith('Qualification:') && !line.startsWith('Intent:'),
+    (line) => !line.startsWith('Qualification:') && !line.startsWith('Intent:') && !isGeneratedLeadSummary(line),
   )
 
   return {
-    summary: summaryLines.join(' ').trim() || value.trim(),
+    summary: summaryLines.join(' ').trim(),
     intent: intentLine?.replace('Intent:', '').trim() ?? '',
     qualifications: parseQualification(qualificationLine?.replace('Qualification:', '').trim() ?? ''),
   }
+}
+
+function isGeneratedLeadSummary(value: string) {
+  return /^(Call|Follow Up|Qualified|Closed|Unqualified|No Answer)\s+(from|call with)\s+\+?[0-9][0-9\s-]{6,}\.?$/i.test(value)
 }
 
 function parseQualification(value: string): Array<[string, string]> {
@@ -887,10 +1003,10 @@ function parseQualification(value: string): Array<[string, string]> {
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>
     return Object.entries(parsed)
-      .filter(([, item]) => item !== null && item !== undefined && item !== '')
+      .filter(([, item]) => item !== null && item !== undefined && item !== '' && String(item).toLowerCase() !== 'not captured')
       .map(([key, item]) => [key, String(item)])
   } catch {
-    return [['details', value]]
+    return value.toLowerCase() === 'not captured' ? [] : [['details', value]]
   }
 }
 

@@ -225,6 +225,160 @@ func TestCreateCallAcceptsFlatAgentPayload(t *testing.T) {
 	}
 }
 
+func TestCreateCallV2AcceptsCleanPayload(t *testing.T) {
+	mock := &mockQueries{
+		lead:           db.Lead{ID: 1, Phone: "+201012345678"},
+		call:           db.Call{ID: 1},
+		leadByPhoneErr: pgx.ErrNoRows,
+	}
+	s := newTestServer(mock)
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":"+201012345678",
+		"lead_status":"unqualified",
+		"outcome":"unqualified",
+		"sentiment":"negative",
+		"duration_secs":90,
+		"transcript":"assistant: Hello\nuser: Not interested",
+		"details":"Phone number: +201012345678\nBudget: Not captured\nRooms: Not captured\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: negative\nCall outcome: unqualified",
+		"call_summary":"Call with +201012345678. Intent: buy. Outcome: unqualified. Sentiment: negative."
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if mock.createLeadArg.Phone != "+201012345678" {
+		t.Fatalf("expected provided phone_number got %q", mock.createLeadArg.Phone)
+	}
+	if mock.createLeadArg.Status.LeadStatus != db.LeadStatusUnqualified {
+		t.Fatalf("expected unqualified lead status got %q", mock.createLeadArg.Status.LeadStatus)
+	}
+	if mock.createCallArg.Outcome.CallOutcome != db.CallOutcomeUnqualified {
+		t.Fatalf("expected unqualified outcome got %q", mock.createCallArg.Outcome.CallOutcome)
+	}
+	if mock.createCallArg.Sentiment.CallSentiment != db.CallSentimentNegative {
+		t.Fatalf("expected negative sentiment got %q", mock.createCallArg.Sentiment.CallSentiment)
+	}
+	if !mock.createCallArg.Summary.Valid || mock.createCallArg.Summary.String != "Call with +201012345678. Intent: buy. Outcome: unqualified. Sentiment: negative." {
+		t.Fatalf("expected call_summary to be stored got %+v", mock.createCallArg.Summary)
+	}
+	if !bytes.Contains([]byte(mock.createLeadArg.Description.String), []byte("Intent: buy")) {
+		t.Fatalf("expected intent in lead description got %+v", mock.createLeadArg.Description)
+	}
+	if bytes.Contains([]byte(mock.createLeadArg.Description.String), []byte("from +201012345678")) {
+		t.Fatalf("expected v2 lead description to omit generated summary got %+v", mock.createLeadArg.Description)
+	}
+	if mock.createCallArg.DurationSecs.Int32 != 90 || !mock.createCallArg.DurationSecs.Valid {
+		t.Fatalf("expected duration 90 got %+v", mock.createCallArg.DurationSecs)
+	}
+}
+
+func TestCreateCallV2RejectsNullPhone(t *testing.T) {
+	s := newTestServer(&mockQueries{})
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":null,
+		"lead_status":"unqualified",
+		"outcome":"no_answer",
+		"sentiment":"neutral",
+		"duration_secs":null,
+		"transcript":"user: 01012345678",
+		"details":"Phone number: Not captured\nBudget: Not captured\nRooms: Not captured\nLocation: Not captured\nProperty type: Not captured\nIntent: buy\nSentiment: neutral\nCall outcome: no_answer",
+		"call_summary":"No answer call."
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected %d got %d body %s", http.StatusBadRequest, w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("phone_number is required")) {
+		t.Fatalf("expected phone_number error got %s", w.Body.String())
+	}
+}
+
+func TestCreateCallV2RejectsUnknownKeys(t *testing.T) {
+	s := newTestServer(&mockQueries{})
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":"+201012345678",
+		"lead_status":"qualified",
+		"outcome":"qualified",
+		"sentiment":"positive",
+		"duration_secs":45,
+		"transcript":"user: interested",
+		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: positive\nCall outcome: qualified",
+		"call_summary":"Qualified call with +201012345678.",
+		"summary":"not allowed"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected %d got %d body %s", http.StatusBadRequest, w.Code, w.Body.String())
+	}
+}
+
+func TestCreateCallV2RejectsMismatchedOutcome(t *testing.T) {
+	s := newTestServer(&mockQueries{})
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":"+201012345678",
+		"lead_status":"qualified",
+		"outcome":"no_answer",
+		"sentiment":"neutral",
+		"duration_secs":null,
+		"transcript":"assistant: Hello",
+		"details":"Phone number: +201012345678\nBudget: Not captured\nRooms: Not captured\nLocation: Not captured\nProperty type: Not captured\nIntent: rent\nSentiment: neutral\nCall outcome: no_answer",
+		"call_summary":"No answer call with +201012345678."
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected %d got %d body %s", http.StatusBadRequest, w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("lead_status must match outcome")) {
+		t.Fatalf("expected outcome mapping error got %s", w.Body.String())
+	}
+}
+
+func TestCreateCallV2RejectsMissingIntentDetail(t *testing.T) {
+	s := newTestServer(&mockQueries{})
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":"+201012345678",
+		"lead_status":"qualified",
+		"outcome":"qualified",
+		"sentiment":"positive",
+		"duration_secs":45,
+		"transcript":"user: interested",
+		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nSentiment: positive\nCall outcome: qualified",
+		"call_summary":"Qualified call with +201012345678."
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected %d got %d body %s", http.StatusBadRequest, w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("details must include Intent")) {
+		t.Fatalf("expected missing intent detail error got %s", w.Body.String())
+	}
+}
+
 func TestListCalls(t *testing.T) {
 	mock := &mockQueries{
 		calls: []db.Call{
