@@ -3,6 +3,7 @@ package tenants
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/httpx"
@@ -26,6 +27,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenant, err := h.service.Create(r.Context(), params)
+	tenant.Name = strings.ToLower(tenant.Name)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "failed to create tenant")
 		return

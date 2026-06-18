@@ -164,7 +164,7 @@ func TestCreateCallParsesStructuredAgentSummary(t *testing.T) {
 	if mock.createCallArg.Sentiment.CallSentiment != db.CallSentimentNegative {
 		t.Fatalf("expected structured sentiment negative got %q", mock.createCallArg.Sentiment.CallSentiment)
 	}
-	if !mock.createCallArg.Summary.Valid || mock.createCallArg.Summary.String != "Qualified call with +201012345678. Sentiment negative." {
+	if !mock.createCallArg.Summary.Valid || mock.createCallArg.Summary.String != "Qualified call with +201012345678." {
 		t.Fatalf("expected concise summary got %+v", mock.createCallArg.Summary)
 	}
 	if bytes.Contains([]byte(mock.createCallArg.Summary.String), []byte("assistant:")) {

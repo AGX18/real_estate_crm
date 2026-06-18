@@ -211,7 +211,7 @@ func (r createCallRequest) toParams(tenantID pgtype.UUID) CreateCallParams {
 		description = structuredLeadDescription(structured)
 	}
 	if len(structured.Fields) > 0 {
-		summary = conciseCallSummary(phone, outcome, sentiment)
+		summary = conciseCallSummary(phone, outcome)
 		details = mergeDetails(structuredDetails(structured), detailsWithoutAssistantPrompts(details))
 	}
 
@@ -345,16 +345,13 @@ func structuredCallSummary(summary structuredSummary) string {
 	return outcome + "."
 }
 
-func conciseCallSummary(phone string, outcome db.CallOutcome, sentiment db.CallSentiment) string {
+func conciseCallSummary(phone string, outcome db.CallOutcome) string {
 	summary := "Call"
 	if outcome != "" {
 		summary = humanize(string(outcome)) + " call"
 	}
 	if phone != "" {
 		summary += " with " + phone
-	}
-	if sentiment != "" {
-		summary += ". Sentiment " + string(sentiment)
 	}
 	return summary + "."
 }

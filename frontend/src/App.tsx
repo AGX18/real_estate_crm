@@ -928,7 +928,7 @@ function parseStructuredCallSummary(value: string): Array<[string, string]> {
 function callSummaryText(value: string) {
   const fields = Object.fromEntries(parseStructuredCallSummary(value))
   if (Object.keys(fields).length === 0) {
-    return value
+    return value.replace(/\s*Sentiment\s+(positive|negative|neutral)\.\s*$/i, '').trim()
   }
 
   const outcome = fields.call_outcome ? humanizeValue(fields.call_outcome) : 'Call'
