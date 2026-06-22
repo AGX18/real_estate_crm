@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/AGX18/real_estate_crm/internal/appointments"
 	"github.com/AGX18/real_estate_crm/internal/auth"
 	"github.com/AGX18/real_estate_crm/internal/brokers"
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
@@ -22,22 +23,25 @@ func newTestServer(q db.Querier) *Server {
 	tokenManager := auth.NewTokenManager("test-secret")
 	authService := auth.NewService(q, tokenManager)
 	leadService := leads.NewService(q)
+	appointmentService := appointments.NewService(q)
 	propertyService := properties.NewService(q)
 	voiceService := voice.NewService(q)
 	s := &Server{
-		tenantService:   tenantService,
-		brokerService:   brokerService,
-		authService:     authService,
-		leadService:     leadService,
-		propertyService: propertyService,
-		voiceService:    voiceService,
-		tokenManager:    tokenManager,
-		tenantHandler:   tenants.NewHandler(tenantService),
-		brokerHandler:   brokers.NewHandler(brokerService),
-		authHandler:     auth.NewHandler(authService),
-		leadHandler:     leads.NewHandler(leadService),
-		propertyHandler: properties.NewHandler(propertyService),
-		voiceHandler:    voice.NewHandler(voiceService),
+		tenantService:      tenantService,
+		brokerService:      brokerService,
+		authService:        authService,
+		leadService:        leadService,
+		appointmentService: appointmentService,
+		propertyService:    propertyService,
+		voiceService:       voiceService,
+		tokenManager:       tokenManager,
+		tenantHandler:      tenants.NewHandler(tenantService),
+		brokerHandler:      brokers.NewHandler(brokerService),
+		authHandler:        auth.NewHandler(authService),
+		leadHandler:        leads.NewHandler(leadService),
+		appointmentHandler: appointments.NewHandler(appointmentService),
+		propertyHandler:    properties.NewHandler(propertyService),
+		voiceHandler:       voice.NewHandler(voiceService),
 	}
 	return s
 }

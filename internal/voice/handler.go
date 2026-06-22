@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/httpx"
@@ -47,6 +48,13 @@ type createCallV2Request struct {
 	Transcript   string
 	Details      string
 	CallSummary  string
+	Appointment  *v2Appointment
+}
+
+type v2Appointment struct {
+	Time string `json:"time"`
+	Date string `json:"date"`
+	Day  string `json:"day"`
 }
 
 func (r *createCallRequest) UnmarshalJSON(data []byte) error {
@@ -260,6 +268,10 @@ func decodeCreateCallV2Request(r *http.Request) (createCallV2Request, error) {
 	if err != nil {
 		return createCallV2Request{}, err
 	}
+	appointment, err := nullableAppointmentField(fields, "appointment")
+	if err != nil {
+		return createCallV2Request{}, err
+	}
 
 	return createCallV2Request{
 		PhoneNumber:  phoneNumber,
@@ -270,6 +282,7 @@ func decodeCreateCallV2Request(r *http.Request) (createCallV2Request, error) {
 		Transcript:   transcript,
 		Details:      details,
 		CallSummary:  callSummary,
+		Appointment:  appointment,
 	}, nil
 }
 
@@ -400,6 +413,22 @@ func (r createCallV2Request) toParams(tenantID pgtype.UUID) CreateCallParams {
 		Sentiment:    r.Sentiment,
 		Outcome:      r.Outcome,
 		DurationSecs: r.DurationSecs,
+		Appointment:  r.appointmentParams(),
+	}
+}
+
+func (r createCallV2Request) appointmentParams() *CreateAppointmentParams {
+	if r.Appointment == nil {
+		return nil
+	}
+	appointmentDate, appointmentTime, err := parseV2AppointmentSchedule(*r.Appointment)
+	if err != nil {
+		return nil
+	}
+	return &CreateAppointmentParams{
+		Date: appointmentDate,
+		Day:  strings.TrimSpace(r.Appointment.Day),
+		Time: appointmentTime,
 	}
 }
 
@@ -734,6 +763,7 @@ func validateExactV2Keys(fields map[string]json.RawMessage) error {
 		"transcript":    {},
 		"details":       {},
 		"call_summary":  {},
+		"appointment":   {},
 	}
 	if len(fields) != len(expected) {
 		return fmt.Errorf("request body must contain exactly the v2 call keys")
@@ -788,6 +818,32 @@ func nullableInt32Field(fields map[string]json.RawMessage, key string) (int32, e
 		return 0, fmt.Errorf("%s cannot be negative", key)
 	}
 	return value, nil
+}
+
+func nullableAppointmentField(fields map[string]json.RawMessage, key string) (*v2Appointment, error) {
+	if string(fields[key]) == "null" {
+		return nil, nil
+	}
+	var value v2Appointment
+	if err := json.Unmarshal(fields[key], &value); err != nil {
+		return nil, fmt.Errorf("%s must be an object or null", key)
+	}
+	value.Date = strings.TrimSpace(value.Date)
+	value.Time = strings.TrimSpace(value.Time)
+	value.Day = strings.TrimSpace(value.Day)
+	if value.Date == "" {
+		return nil, fmt.Errorf("appointment.date is required")
+	}
+	if value.Time == "" {
+		return nil, fmt.Errorf("appointment.time is required")
+	}
+	if value.Day == "" {
+		return nil, fmt.Errorf("appointment.day is required")
+	}
+	if _, _, err := parseV2AppointmentSchedule(value); err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func leadStatusField(fields map[string]json.RawMessage, key string) (db.LeadStatus, error) {
@@ -868,6 +924,51 @@ func validateV2Details(value string) error {
 		}
 	}
 	return nil
+}
+
+func parseV2AppointmentSchedule(value v2Appointment) (time.Time, time.Time, error) {
+	dateValue := strings.TrimSpace(value.Date)
+	timeValue := strings.TrimSpace(value.Time)
+	dateLayouts := []string{"2006-01-02", "02/01/2006", "01/02/2006"}
+	timeLayouts := []string{"15:04", "15:04:05", "3:04 PM", "3:04PM"}
+
+	var parsedDate time.Time
+	var dateErr error
+	for _, layout := range dateLayouts {
+		parsedDate, dateErr = time.ParseInLocation(layout, dateValue, time.Local)
+		if dateErr == nil {
+			break
+		}
+	}
+	if dateErr != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("appointment.date must be YYYY-MM-DD")
+	}
+
+	var parsedTime time.Time
+	var timeErr error
+	for _, layout := range timeLayouts {
+		parsedTime, timeErr = time.ParseInLocation(layout, timeValue, time.Local)
+		if timeErr == nil {
+			break
+		}
+	}
+	if timeErr != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("appointment.time must be HH:MM")
+	}
+	if !weekdayMatches(strings.TrimSpace(value.Day), parsedDate.Weekday()) {
+		return time.Time{}, time.Time{}, fmt.Errorf("appointment.day must match appointment.date")
+	}
+	return parsedDate, parsedTime, nil
+}
+
+func weekdayMatches(value string, weekday time.Weekday) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return false
+	}
+	full := strings.ToLower(weekday.String())
+	short := full[:3]
+	return normalized == full || normalized == short
 }
 
 func firstNonEmpty(values ...string) string {

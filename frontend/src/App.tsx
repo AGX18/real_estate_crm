@@ -8,6 +8,7 @@ type LeadStatus = 'Follow_Up' | 'qualified' | 'closed' | 'unqualified'
 type PropertyStatus = 'available' | 'sold' | 'rented'
 type CallOutcome = 'follow_up' | 'qualified' | 'closed' | 'unqualified' | 'no_answer'
 type CallSentiment = 'positive' | 'negative' | 'neutral'
+type AppointmentStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show'
 
 type Broker = {
   id: number
@@ -68,6 +69,20 @@ type Call = {
   created_at?: string
 }
 
+type Appointment = {
+  id: number
+  tenant_id: string
+  lead_id: number
+  title: string
+  notes?: NullableText | string | null
+  status?: NullableValue<AppointmentStatus> | AppointmentStatus | null
+  appointment_date?: unknown
+  appointment_day?: string
+  appointment_time?: unknown
+  created_at?: unknown
+  updated_at?: unknown
+}
+
 type NullableText = {
   String?: string
   string?: string
@@ -84,6 +99,20 @@ type NullableNumber = {
   valid?: boolean
 }
 
+type NullableDate = {
+  Time?: string
+  time?: string
+  Valid?: boolean
+  valid?: boolean
+}
+
+type NullableTime = {
+  Microseconds?: number
+  microseconds?: number
+  Valid?: boolean
+  valid?: boolean
+}
+
 type NullableValue<T extends string> = {
   [key: string]: T | boolean | undefined
   Valid?: boolean
@@ -91,13 +120,14 @@ type NullableValue<T extends string> = {
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error'
-type Page = 'dashboard' | 'leads' | 'properties' | 'calls' | 'brokers'
+type Page = 'dashboard' | 'leads' | 'appointments' | 'properties' | 'calls' | 'brokers'
 type DashboardMetrics = {
   qualified: number
   followUps: number
   available: number
   closedInventory: number
   qualifiedCalls: number
+  upcomingAppointments: number
 }
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
@@ -124,9 +154,17 @@ const callOutcomeLabels: Record<CallOutcome, string> = {
   no_answer: 'No answer',
 }
 
+const appointmentStatusLabels: Record<AppointmentStatus, string> = {
+  scheduled: 'Scheduled',
+  completed: 'Completed',
+  canceled: 'Canceled',
+  no_show: 'No show',
+}
+
 const pageTitles: Record<Page, string> = {
   dashboard: 'Real estate command center',
   leads: 'Leads',
+  appointments: 'Appointments',
   properties: 'Properties',
   calls: 'Calls',
   brokers: 'Brokers',
@@ -138,6 +176,7 @@ function App() {
   const [properties, setProperties] = useState<Property[]>([])
   const [brokers, setBrokers] = useState<Broker[]>([])
   const [calls, setCalls] = useState<Call[]>([])
+  const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [error, setError] = useState('')
   const [propertyFilter, setPropertyFilter] = useState<PropertyStatus | 'all'>('all')
@@ -145,13 +184,13 @@ function App() {
   const [activePage, setActivePage] = useState<Page>(() => pageFromHash(window.location.hash))
 
   const isAdmin = session?.broker.role === 'admin'
-  const navItems: Page[] = ['dashboard', 'leads', 'properties', 'calls', ...(isAdmin ? (['brokers'] as Page[]) : [])]
+  const navItems: Page[] = ['dashboard', 'leads', 'appointments', 'properties', 'calls', ...(isAdmin ? (['brokers'] as Page[]) : [])]
   const currentPage = activePage === 'brokers' && !isAdmin ? 'dashboard' : activePage
   const refreshDashboard = () => {
     if (!session) {
       return
     }
-    reload(session, isAdmin, setLeads, setProperties, setBrokers, setCalls, setLoadState, setError, setSelectedLeadID)
+    reload(session, isAdmin, setLeads, setProperties, setBrokers, setCalls, setAppointments, setLoadState, setError, setSelectedLeadID)
   }
 
   useEffect(() => {
@@ -173,11 +212,12 @@ function App() {
       apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
       apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
       apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
+      apiGet<Appointment[]>(`/tenants/${session.broker.tenant_id}/appointments`, session.token),
       isAdmin
         ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
         : Promise.resolve([]),
     ])
-      .then(([nextLeads, nextProperties, nextCalls, nextBrokers]) => {
+      .then(([nextLeads, nextProperties, nextCalls, nextAppointments, nextBrokers]) => {
         if (cancelled) {
           return
         }
@@ -186,10 +226,12 @@ function App() {
           nextProperties,
           nextBrokers,
           nextCalls,
+          nextAppointments,
           setLeads,
           setProperties,
           setBrokers,
           setCalls,
+          setAppointments,
           setSelectedLeadID,
         )
         setLoadState('ready')
@@ -216,9 +258,10 @@ function App() {
       return status === 'sold' || status === 'rented'
     }).length
     const qualifiedCalls = calls.filter((call) => callOutcome(call) === 'qualified').length
+    const upcomingAppointments = appointments.filter((appointment) => appointmentStatus(appointment) === 'scheduled').length
 
-    return { qualified, followUps, available, closedInventory, qualifiedCalls }
-  }, [calls, leads, properties])
+    return { qualified, followUps, available, closedInventory, qualifiedCalls, upcomingAppointments }
+  }, [appointments, calls, leads, properties])
 
   const propertyCounts = useMemo(
     () => ({
@@ -252,6 +295,7 @@ function App() {
     setProperties([])
     setBrokers([])
     setCalls([])
+    setAppointments([])
     setSelectedLeadID(null)
     setLoadState('idle')
   }
@@ -320,6 +364,10 @@ function App() {
           />
         )}
 
+        {currentPage === 'appointments' && (
+          <AppointmentsPage appointments={appointments} leads={leads} />
+        )}
+
         {currentPage === 'properties' && (
           <PropertiesPage
             filteredProperties={filteredProperties}
@@ -357,6 +405,7 @@ function DashboardPage({ metrics, isAdmin }: { metrics: DashboardMetrics; isAdmi
         <Metric label="Follow-ups" value={String(metrics.followUps)} trend="needs next action" />
         <Metric label="Available units" value={String(metrics.available)} trend="open inventory" />
         <Metric label="Qualified calls" value={String(metrics.qualifiedCalls)} trend="voice outcomes" />
+        <Metric label="Appointments" value={String(metrics.upcomingAppointments)} trend="scheduled next" />
       </section>
     </>
   )
@@ -475,6 +524,25 @@ function PropertiesPage({
             </article>
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
+
+function AppointmentsPage({ appointments, leads }: { appointments: Appointment[]; leads: Lead[] }) {
+  return (
+    <section className="panel appointments-panel page-content" id="appointments">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Lead schedule</p>
+          <h2>Appointments</h2>
+        </div>
+      </div>
+      <div className="appointments-list">
+        {appointments.length === 0 && <EmptyState message="No appointments found for this tenant." />}
+        {appointments.map((appointment) => (
+          <AppointmentCard appointment={appointment} leads={leads} key={appointment.id} />
+        ))}
       </div>
     </section>
   )
@@ -837,6 +905,27 @@ function CallCard({ call, leads }: { call: Call; leads: Lead[] }) {
   )
 }
 
+function AppointmentCard({ appointment, leads }: { appointment: Appointment; leads: Lead[] }) {
+  const status = appointmentStatus(appointment)
+  const lead = leads.find((item) => item.id === appointment.lead_id)
+  const appointmentDate = dateValue(appointment.appointment_date)
+
+  return (
+    <article className="appointment-row">
+      <div>
+        <span className={`badge ${appointmentStatusClass(status)}`}>{appointmentStatusLabels[status]}</span>
+        <strong>{appointment.title || 'Property viewing'}</strong>
+        <small>{lead?.phone ?? `Lead #${appointment.lead_id}`}</small>
+      </div>
+      <div className="appointment-time">
+        <strong>{appointment.appointment_day || appointmentDayLabel(appointmentDate)}</strong>
+        <span>{appointmentDateLabel(appointmentDate)} at {appointmentTimeLabel(appointment.appointment_time)}</span>
+      </div>
+      <p>{textValue(appointment.notes) || 'No notes'}</p>
+    </article>
+  )
+}
+
 async function reload(
   session: Session,
   isAdmin: boolean,
@@ -844,6 +933,7 @@ async function reload(
   setProperties: (value: Property[]) => void,
   setBrokers: (value: Broker[]) => void,
   setCalls: (value: Call[]) => void,
+  setAppointments: (value: Appointment[]) => void,
   setLoadState: (value: LoadState) => void,
   setError: (value: string) => void,
   setSelectedLeadID?: (value: number | null) => void,
@@ -851,10 +941,11 @@ async function reload(
   setLoadState('loading')
   setError('')
   try {
-    const [nextLeads, nextProperties, nextCalls, nextBrokers] = await Promise.all([
+    const [nextLeads, nextProperties, nextCalls, nextAppointments, nextBrokers] = await Promise.all([
       apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
       apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
       apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
+      apiGet<Appointment[]>(`/tenants/${session.broker.tenant_id}/appointments`, session.token),
       isAdmin
         ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
         : Promise.resolve([]),
@@ -864,10 +955,12 @@ async function reload(
       nextProperties,
       nextBrokers,
       nextCalls,
+      nextAppointments,
       setLeads,
       setProperties,
       setBrokers,
       setCalls,
+      setAppointments,
       setSelectedLeadID,
     )
     setLoadState('ready')
@@ -882,10 +975,12 @@ function applyDashboardData(
   nextProperties: Property[] | null | undefined,
   nextBrokers: Broker[] | null | undefined,
   nextCalls: Call[] | null | undefined,
+  nextAppointments: Appointment[] | null | undefined,
   setLeads: (value: Lead[]) => void,
   setProperties: (value: Property[]) => void,
   setBrokers: (value: Broker[]) => void,
   setCalls: (value: Call[]) => void,
+  setAppointments: (value: Appointment[]) => void,
   setSelectedLeadID?: (value: number | null) => void,
 ) {
   const safeLeads = asArray(nextLeads)
@@ -893,6 +988,7 @@ function applyDashboardData(
   setProperties(asArray(nextProperties))
   setBrokers(asArray(nextBrokers))
   setCalls(asArray(nextCalls))
+  setAppointments(asArray(nextAppointments))
   setSelectedLeadID?.(safeLeads[0]?.id ?? null)
 }
 
@@ -902,7 +998,7 @@ function asArray<T>(value: T[] | null | undefined): T[] {
 
 function pageFromHash(hash: string): Page {
   const page = hash.replace('#', '').toLowerCase()
-  return ['leads', 'properties', 'calls', 'brokers'].includes(page) ? page as Page : 'dashboard'
+  return ['leads', 'appointments', 'properties', 'calls', 'brokers'].includes(page) ? page as Page : 'dashboard'
 }
 
 async function apiGet<T>(path: string, token: string): Promise<T> {
@@ -1114,12 +1210,20 @@ function callOutcome(call: Call): CallOutcome {
   return enumChoice(call.outcome, ['follow_up', 'qualified', 'closed', 'unqualified', 'no_answer'], 'follow_up')
 }
 
+function appointmentStatus(appointment: Appointment): AppointmentStatus {
+  return enumChoice(appointment.status, ['scheduled', 'completed', 'canceled', 'no_show'], 'scheduled')
+}
+
 function callSentiment(call: Call): string {
   return humanizeValue(enumChoice(call.sentiment, ['positive', 'negative', 'neutral'], 'neutral'))
 }
 
 function callOutcomeClass(outcome: CallOutcome) {
   return outcome === 'follow_up' ? 'follow_up' : outcome
+}
+
+function appointmentStatusClass(status: AppointmentStatus) {
+  return status === 'no_show' ? 'no_answer' : status
 }
 
 function enumChoice<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -1205,11 +1309,67 @@ function durationLabel(value: NullableNumber | number | null | undefined) {
   return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`
 }
 
-function dateLabel(value?: string) {
+function dateValue(value: unknown) {
   if (!value) {
+    return ''
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (typeof value === 'object') {
+    const date = value as NullableDate
+    const valid = date.Valid ?? date.valid ?? true
+    return valid ? date.Time ?? date.time ?? '' : ''
+  }
+  return ''
+}
+
+function dateLabel(value?: unknown) {
+  const rawValue = dateValue(value)
+  if (!rawValue) {
     return 'No date'
   }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(rawValue))
+}
+
+function appointmentDayLabel(value?: unknown) {
+  const rawValue = dateValue(value)
+  if (!rawValue) {
+    return 'No day'
+  }
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(new Date(rawValue))
+}
+
+function appointmentDateLabel(value?: unknown) {
+  const rawValue = dateValue(value)
+  if (!rawValue) {
+    return 'No date'
+  }
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(rawValue))
+}
+
+function appointmentTimeLabel(value?: unknown) {
+  if (!value) {
+    return 'No time'
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (typeof value === 'object') {
+    const timeValue = value as NullableTime
+    const valid = timeValue.Valid ?? timeValue.valid ?? true
+    if (!valid) {
+      return 'No time'
+    }
+    const microseconds = timeValue.Microseconds ?? timeValue.microseconds
+    if (typeof microseconds === 'number') {
+      const totalMinutes = Math.floor(microseconds / 60000000)
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    }
+  }
+  return 'No time'
 }
 
 export default App

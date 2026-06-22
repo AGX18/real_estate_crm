@@ -15,6 +15,8 @@ type mockQueries struct {
 	brokers                      []db.Broker
 	lead                         db.Lead
 	leads                        []db.Lead
+	appointment                  db.Appointment
+	appointments                 []db.Appointment
 	call                         db.Call
 	calls                        []db.Call
 	property                     db.Property
@@ -23,6 +25,7 @@ type mockQueries struct {
 	propertySearchResults        []db.SearchPropertyEmbeddingsRow
 	createBrokerArg              db.CreateBrokerParams
 	getBrokerByEmailArg          db.GetBrokerByEmailParams
+	createAppointmentArg         db.CreateAppointmentParams
 	createLeadArg                db.CreateLeadParams
 	updateLeadArg                db.UpdateLeadParams
 	createCallArg                db.CreateCallParams
@@ -58,6 +61,10 @@ func (m *mockQueries) DeleteTenant(ctx context.Context, id pgtype.UUID) error {
 func (m *mockQueries) AddLeadProperty(ctx context.Context, arg db.AddLeadPropertyParams) error {
 	return nil
 }
+func (m *mockQueries) CreateAppointment(ctx context.Context, arg db.CreateAppointmentParams) (db.Appointment, error) {
+	m.createAppointmentArg = arg
+	return m.appointment, m.err
+}
 func (m *mockQueries) CreateBroker(ctx context.Context, arg db.CreateBrokerParams) (db.Broker, error) {
 	m.createBrokerArg = arg
 	return m.broker, m.err
@@ -82,6 +89,9 @@ func (m *mockQueries) CreatePropertyEmbedding(ctx context.Context, arg db.Create
 	m.createPropertyEmbeddingCalls++
 	return m.propertyEmbedding, m.err
 }
+func (m *mockQueries) DeleteAppointment(ctx context.Context, arg db.DeleteAppointmentParams) error {
+	return m.err
+}
 func (m *mockQueries) DeleteBroker(ctx context.Context, arg db.DeleteBrokerParams) error {
 	return m.err
 }
@@ -96,6 +106,9 @@ func (m *mockQueries) DeletePropertyEmbedding(ctx context.Context, arg db.Delete
 func (m *mockQueries) GetBrokerByEmail(ctx context.Context, arg db.GetBrokerByEmailParams) (db.Broker, error) {
 	m.getBrokerByEmailArg = arg
 	return m.broker, m.err
+}
+func (m *mockQueries) GetAppointmentByID(ctx context.Context, arg db.GetAppointmentByIDParams) (db.Appointment, error) {
+	return m.appointment, m.err
 }
 func (m *mockQueries) GetBrokerByID(ctx context.Context, arg db.GetBrokerByIDParams) (db.Broker, error) {
 	return m.broker, m.err
@@ -121,6 +134,12 @@ func (m *mockQueries) GetPropertyByID(ctx context.Context, arg db.GetPropertyByI
 func (m *mockQueries) GetPropertyLeads(ctx context.Context, arg db.GetPropertyLeadsParams) ([]db.Lead, error) {
 	return nil, nil
 }
+func (m *mockQueries) ListAppointments(ctx context.Context, tenantID pgtype.UUID) ([]db.Appointment, error) {
+	return m.appointments, m.err
+}
+func (m *mockQueries) ListAppointmentsByLead(ctx context.Context, arg db.ListAppointmentsByLeadParams) ([]db.Appointment, error) {
+	return m.appointments, m.err
+}
 func (m *mockQueries) ListBrokers(ctx context.Context, tenantID pgtype.UUID) ([]db.Broker, error) {
 	return m.brokers, m.err
 }
@@ -145,6 +164,9 @@ func (m *mockQueries) ListPropertiesByStatus(ctx context.Context, arg db.ListPro
 func (m *mockQueries) ListPropertiesByType(ctx context.Context, arg db.ListPropertiesByTypeParams) ([]db.Property, error) {
 	return m.properties, m.err
 }
+func (m *mockQueries) ListUpcomingAppointments(ctx context.Context, arg db.ListUpcomingAppointmentsParams) ([]db.Appointment, error) {
+	return m.appointments, m.err
+}
 func (m *mockQueries) RemoveLeadProperty(ctx context.Context, arg db.RemoveLeadPropertyParams) error {
 	return nil
 }
@@ -154,6 +176,12 @@ func (m *mockQueries) SearchPropertyEmbeddings(ctx context.Context, arg db.Searc
 }
 func (m *mockQueries) UpdateBrokerRole(ctx context.Context, arg db.UpdateBrokerRoleParams) (db.Broker, error) {
 	return m.broker, m.err
+}
+func (m *mockQueries) UpdateAppointment(ctx context.Context, arg db.UpdateAppointmentParams) (db.Appointment, error) {
+	return m.appointment, m.err
+}
+func (m *mockQueries) UpdateAppointmentStatus(ctx context.Context, arg db.UpdateAppointmentStatusParams) (db.Appointment, error) {
+	return m.appointment, m.err
 }
 func (m *mockQueries) UpdateCall(ctx context.Context, arg db.UpdateCallParams) (db.Call, error) {
 	return db.Call{}, nil

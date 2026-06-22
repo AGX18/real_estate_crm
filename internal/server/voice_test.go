@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
@@ -242,7 +243,8 @@ func TestCreateCallV2AcceptsCleanPayload(t *testing.T) {
 		"duration_secs":90,
 		"transcript":"assistant: Hello\nuser: Not interested",
 		"details":"Phone number: +201012345678\nBudget: Not captured\nRooms: Not captured\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: negative\nCall outcome: unqualified",
-		"call_summary":"Call with +201012345678. Intent: buy. Outcome: unqualified. Sentiment: negative."
+		"call_summary":"Call with +201012345678. Intent: buy. Outcome: unqualified. Sentiment: negative.",
+		"appointment":null
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
 	w := httptest.NewRecorder()
@@ -277,6 +279,53 @@ func TestCreateCallV2AcceptsCleanPayload(t *testing.T) {
 	}
 }
 
+func TestCreateCallV2CreatesAppointment(t *testing.T) {
+	mock := &mockQueries{
+		lead:           db.Lead{ID: 42, Phone: "+201012345678"},
+		call:           db.Call{ID: 1},
+		appointment:    db.Appointment{ID: 7, LeadID: 42},
+		leadByPhoneErr: pgx.ErrNoRows,
+	}
+	s := newTestServer(mock)
+	r := newVoiceTestRouter(s)
+
+	body := bytes.NewBufferString(`{
+		"phone_number":"+201012345678",
+		"lead_status":"qualified",
+		"outcome":"qualified",
+		"sentiment":"positive",
+		"duration_secs":120,
+		"transcript":"assistant: Hello\nuser: Tomorrow works",
+		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: positive\nCall outcome: qualified",
+		"call_summary":"Qualified call with +201012345678.",
+		"appointment":{"date":"2026-06-23","time":"14:30","day":"Tuesday"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if mock.createAppointmentArg.LeadID != 42 {
+		t.Fatalf("expected appointment for lead 42 got %d", mock.createAppointmentArg.LeadID)
+	}
+	if mock.createAppointmentArg.Status.AppointmentStatus != db.AppointmentStatusScheduled {
+		t.Fatalf("expected scheduled appointment got %q", mock.createAppointmentArg.Status.AppointmentStatus)
+	}
+	expectedDate := time.Date(2026, time.June, 23, 0, 0, 0, 0, time.Local)
+	if !mock.createAppointmentArg.AppointmentDate.Time.Equal(expectedDate) {
+		t.Fatalf("expected appointment date %s got %s", expectedDate, mock.createAppointmentArg.AppointmentDate.Time)
+	}
+	if mock.createAppointmentArg.AppointmentDay != "Tuesday" {
+		t.Fatalf("expected appointment day Tuesday got %q", mock.createAppointmentArg.AppointmentDay)
+	}
+	expectedTime := int64(14*time.Hour/time.Microsecond + 30*time.Minute/time.Microsecond)
+	if mock.createAppointmentArg.AppointmentTime.Microseconds != expectedTime {
+		t.Fatalf("expected appointment time %d got %d", expectedTime, mock.createAppointmentArg.AppointmentTime.Microseconds)
+	}
+}
+
 func TestCreateCallV2RejectsNullPhone(t *testing.T) {
 	s := newTestServer(&mockQueries{})
 	r := newVoiceTestRouter(s)
@@ -289,7 +338,8 @@ func TestCreateCallV2RejectsNullPhone(t *testing.T) {
 		"duration_secs":null,
 		"transcript":"user: 01012345678",
 		"details":"Phone number: Not captured\nBudget: Not captured\nRooms: Not captured\nLocation: Not captured\nProperty type: Not captured\nIntent: buy\nSentiment: neutral\nCall outcome: no_answer",
-		"call_summary":"No answer call."
+		"call_summary":"No answer call.",
+		"appointment":null
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
 	w := httptest.NewRecorder()
@@ -316,6 +366,7 @@ func TestCreateCallV2RejectsUnknownKeys(t *testing.T) {
 		"transcript":"user: interested",
 		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: positive\nCall outcome: qualified",
 		"call_summary":"Qualified call with +201012345678.",
+		"appointment":null,
 		"summary":"not allowed"
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
@@ -339,7 +390,8 @@ func TestCreateCallV2RejectsMismatchedOutcome(t *testing.T) {
 		"duration_secs":null,
 		"transcript":"assistant: Hello",
 		"details":"Phone number: +201012345678\nBudget: Not captured\nRooms: Not captured\nLocation: Not captured\nProperty type: Not captured\nIntent: rent\nSentiment: neutral\nCall outcome: no_answer",
-		"call_summary":"No answer call with +201012345678."
+		"call_summary":"No answer call with +201012345678.",
+		"appointment":null
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
 	w := httptest.NewRecorder()
@@ -365,7 +417,8 @@ func TestCreateCallV2RejectsMissingIntentDetail(t *testing.T) {
 		"duration_secs":45,
 		"transcript":"user: interested",
 		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nSentiment: positive\nCall outcome: qualified",
-		"call_summary":"Qualified call with +201012345678."
+		"call_summary":"Qualified call with +201012345678.",
+		"appointment":null
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
 	w := httptest.NewRecorder()

@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
+	"github.com/AGX18/real_estate_crm/internal/appointments"
 	"github.com/AGX18/real_estate_crm/internal/auth"
 	"github.com/AGX18/real_estate_crm/internal/brokers"
 	"github.com/AGX18/real_estate_crm/internal/config"
@@ -22,22 +23,24 @@ import (
 )
 
 type Server struct {
-	port            int
-	tenantService   *tenants.Service
-	brokerService   *brokers.Service
-	authService     *auth.Service
-	leadService     *leads.Service
-	propertyService *properties.Service
-	voiceService    *voice.Service
-	tokenManager    *auth.TokenManager
-	tenantHandler   *tenants.Handler
-	brokerHandler   *brokers.Handler
-	authHandler     *auth.Handler
-	leadHandler     *leads.Handler
-	propertyHandler *properties.Handler
-	voiceHandler    *voice.Handler
-	db              database.Service
-	logger          *slog.Logger
+	port               int
+	tenantService      *tenants.Service
+	brokerService      *brokers.Service
+	authService        *auth.Service
+	leadService        *leads.Service
+	appointmentService *appointments.Service
+	propertyService    *properties.Service
+	voiceService       *voice.Service
+	tokenManager       *auth.TokenManager
+	tenantHandler      *tenants.Handler
+	brokerHandler      *brokers.Handler
+	authHandler        *auth.Handler
+	leadHandler        *leads.Handler
+	appointmentHandler *appointments.Handler
+	propertyHandler    *properties.Handler
+	voiceHandler       *voice.Handler
+	db                 database.Service
+	logger             *slog.Logger
 }
 
 func NewServer() (*http.Server, error) {
@@ -59,27 +62,30 @@ func NewServer() (*http.Server, error) {
 	tokenManager := auth.NewTokenManager(cfg.Auth.TokenSecret)
 	authService := auth.NewServiceWithStore(store, queries, tokenManager)
 	leadService := leads.NewService(queries)
+	appointmentService := appointments.NewService(queries)
 	embedder := embeddings.NewOpenAIEmbedder(cfg.Embeddings.APIKey, cfg.Embeddings.Model, cfg.Embeddings.Dimensions)
 	propertyService := properties.NewServiceWithStore(store, embedder)
 	voiceService := voice.NewServiceWithStore(store)
 
 	NewServer := &Server{
-		port:            cfg.Port,
-		db:              dbService,
-		tenantService:   tenantService,
-		brokerService:   brokerService,
-		authService:     authService,
-		leadService:     leadService,
-		propertyService: propertyService,
-		voiceService:    voiceService,
-		tokenManager:    tokenManager,
-		tenantHandler:   tenants.NewHandler(tenantService),
-		brokerHandler:   brokers.NewHandler(brokerService),
-		authHandler:     auth.NewHandler(authService),
-		leadHandler:     leads.NewHandler(leadService),
-		propertyHandler: properties.NewHandler(propertyService),
-		voiceHandler:    voice.NewHandler(voiceService),
-		logger:          logger.Log,
+		port:               cfg.Port,
+		db:                 dbService,
+		tenantService:      tenantService,
+		brokerService:      brokerService,
+		authService:        authService,
+		leadService:        leadService,
+		appointmentService: appointmentService,
+		propertyService:    propertyService,
+		voiceService:       voiceService,
+		tokenManager:       tokenManager,
+		tenantHandler:      tenants.NewHandler(tenantService),
+		brokerHandler:      brokers.NewHandler(brokerService),
+		authHandler:        auth.NewHandler(authService),
+		leadHandler:        leads.NewHandler(leadService),
+		appointmentHandler: appointments.NewHandler(appointmentService),
+		propertyHandler:    properties.NewHandler(propertyService),
+		voiceHandler:       voice.NewHandler(voiceService),
+		logger:             logger.Log,
 	}
 
 	// Declare Server config

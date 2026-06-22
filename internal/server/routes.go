@@ -30,6 +30,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	s.registerTenantRoutes(r)
 	s.registerBrokerRoutes(r)
 	s.registerLeadRoutes(r)
+	s.registerAppointmentRoutes(r)
 	s.registerPropertyRoutes(r)
 	s.registerVoiceRoutes(r)
 
@@ -66,6 +67,15 @@ func (s *Server) registerLeadRoutes(r chi.Router) {
 	r.Patch("/tenants/{tenant_id}/leads/{lead_id}/status", s.leadHandler.UpdateStatus)
 	r.Patch("/tenants/{tenant_id}/leads/{lead_id}/description", s.leadHandler.UpdateDescription)
 	r.Delete("/tenants/{tenant_id}/leads/{lead_id}", s.leadHandler.Delete)
+}
+
+func (s *Server) registerAppointmentRoutes(r chi.Router) {
+	r.Post("/tenants/{tenant_id}/appointments", s.appointmentHandler.Create)
+	r.Get("/tenants/{tenant_id}/appointments", s.appointmentHandler.List)
+	r.Get("/tenants/{tenant_id}/appointments/{appointment_id}", s.appointmentHandler.Get)
+	r.Put("/tenants/{tenant_id}/appointments/{appointment_id}", s.appointmentHandler.Update)
+	r.Patch("/tenants/{tenant_id}/appointments/{appointment_id}/status", s.appointmentHandler.UpdateStatus)
+	r.Delete("/tenants/{tenant_id}/appointments/{appointment_id}", s.appointmentHandler.Delete)
 }
 
 func (s *Server) registerPropertyRoutes(r chi.Router) {

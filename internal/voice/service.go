@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"errors"
+	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/store"
@@ -31,11 +32,19 @@ type CreateCallParams struct {
 	Sentiment    db.CallSentiment
 	Outcome      db.CallOutcome
 	DurationSecs int32
+	Appointment  *CreateAppointmentParams
 }
 
 type CreateCallResult struct {
-	Lead db.Lead `json:"lead"`
-	Call db.Call `json:"call"`
+	Lead        db.Lead         `json:"lead"`
+	Call        db.Call         `json:"call"`
+	Appointment *db.Appointment `json:"appointment,omitempty"`
+}
+
+type CreateAppointmentParams struct {
+	Date time.Time
+	Day  string
+	Time time.Time
 }
 
 func NewService(queries db.Querier) *Service {
@@ -110,7 +119,25 @@ func (s *Service) createCall(ctx context.Context, q db.Querier, params CreateCal
 		return CreateCallResult{}, err
 	}
 
-	return CreateCallResult{Lead: lead, Call: call}, nil
+	result := CreateCallResult{Lead: lead, Call: call}
+	if params.Appointment != nil {
+		appointment, err := q.CreateAppointment(ctx, db.CreateAppointmentParams{
+			TenantID:        params.TenantID,
+			LeadID:          lead.ID,
+			Title:           "Property viewing",
+			Notes:           textParam("Scheduled from V2 call summary. Day: " + params.Appointment.Day),
+			Status:          appointmentStatusParam(db.AppointmentStatusScheduled),
+			AppointmentDate: dateParam(params.Appointment.Date),
+			AppointmentDay:  params.Appointment.Day,
+			AppointmentTime: timeParam(params.Appointment.Time),
+		})
+		if err != nil {
+			return CreateCallResult{}, err
+		}
+		result.Appointment = &appointment
+	}
+
+	return result, nil
 }
 
 func textParam(value string) pgtype.Text {
@@ -119,6 +146,17 @@ func textParam(value string) pgtype.Text {
 
 func int4Param(value int32) pgtype.Int4 {
 	return pgtype.Int4{Int32: value, Valid: value > 0}
+}
+
+func dateParam(value time.Time) pgtype.Date {
+	return pgtype.Date{Time: value, Valid: true}
+}
+
+func timeParam(value time.Time) pgtype.Time {
+	microseconds := int64(value.Hour()) * int64(time.Hour/time.Microsecond)
+	microseconds += int64(value.Minute()) * int64(time.Minute/time.Microsecond)
+	microseconds += int64(value.Second()) * int64(time.Second/time.Microsecond)
+	return pgtype.Time{Microseconds: microseconds, Valid: true}
 }
 
 func leadStatusParam(value db.LeadStatus) db.NullLeadStatus {
@@ -131,4 +169,8 @@ func callSentimentParam(value db.CallSentiment) db.NullCallSentiment {
 
 func callOutcomeParam(value db.CallOutcome) db.NullCallOutcome {
 	return db.NullCallOutcome{CallOutcome: value, Valid: value != ""}
+}
+
+func appointmentStatusParam(value db.AppointmentStatus) db.NullAppointmentStatus {
+	return db.NullAppointmentStatus{AppointmentStatus: value, Valid: value != ""}
 }
