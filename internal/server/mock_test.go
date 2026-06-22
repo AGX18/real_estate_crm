@@ -30,6 +30,7 @@ type mockQueries struct {
 	updateLeadArg                db.UpdateLeadParams
 	createCallArg                db.CreateCallParams
 	createPropertyArg            db.CreatePropertyParams
+	createPropertyCalls          int
 	createPropertyEmbeddingArg   db.CreatePropertyEmbeddingParams
 	createPropertyEmbeddingCalls int
 	searchPropertyEmbeddingsArg  db.SearchPropertyEmbeddingsParams
@@ -82,6 +83,7 @@ func (m *mockQueries) CreateProperties(ctx context.Context, arg []db.CreatePrope
 }
 func (m *mockQueries) CreateProperty(ctx context.Context, arg db.CreatePropertyParams) (db.Property, error) {
 	m.createPropertyArg = arg
+	m.createPropertyCalls++
 	return m.property, m.err
 }
 func (m *mockQueries) CreatePropertyEmbedding(ctx context.Context, arg db.CreatePropertyEmbeddingParams) (db.PropertyEmbedding, error) {

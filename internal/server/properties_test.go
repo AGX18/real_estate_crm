@@ -249,6 +249,72 @@ func TestImportPropertiesAcceptsTestDataShape(t *testing.T) {
 	}
 }
 
+func TestImportPropertiesAcceptsTestData2Shape(t *testing.T) {
+	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 2, Bathrooms: 2}}
+	s := newTestServer(mock)
+	r := newPropertyTestRouter(s)
+
+	body, contentType := propertiesImportBody(t, "test_data_2.json", `[
+		{
+			"description":"ارخص سعر في الماركت موقع متميز شقة غرفتين للبيع في كمباوند ماونتن فيو هايد بارك التجمع الخامس القاهرة الجديدة",
+			"price":7400000,
+			"area_sqm":141,
+			"type":"شقة",
+			"project":"كومباوند ماونتن فيو هايد بارك",
+			"city":"التجمع الخامس",
+			"Governorate":"القاهرة",
+			"bedrooms":2,
+			"bathrooms":3
+		},
+		{
+			"description":"شالية صف اول علي الممشي السياحي امام ابراج العلمين مباشرة متشطب جاهز للاستلام بخصم الكاش 50% Down Town",
+			"price":6200000,
+			"area_sqm":164,
+			"type":"شاليه",
+			"project":"داون تاون",
+			"city":"العلمين",
+			"Governorate":"مطروح",
+			"bedrooms":2,
+			"bathrooms":2
+		},
+		{
+			"description":"للبيع بمدينة نور فيلا استاند الون نموذج B يسعر لقطه",
+			"price":22546000,
+			"area_sqm":488,
+			"type":"فیلا",
+			"project":"مدينة نور",
+			"city":"العاصمة الإدارية الجديدة",
+			"Governorate":"القاهرة",
+			"bedrooms":5,
+			"bathrooms":5
+		},
+		{
+			"description":"شقه للبيع الابراهيميه خطوات من شارع ابوقير",
+			"price":2250000,
+			"area_sqm":120,
+			"type":"شقة",
+			"project":"الابراهيمية",
+			"Governorate":"الإسكندرية",
+			"bedrooms":2,
+			"bathrooms":1
+		}
+	]`)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected %d got %d body %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+	if mock.createPropertyCalls != 4 {
+		t.Fatalf("expected 4 properties to be created got %d", mock.createPropertyCalls)
+	}
+	if !mock.createPropertyArg.Governorate.Valid || mock.createPropertyArg.Governorate.String != "الإسكندرية" {
+		t.Fatalf("expected final governorate to import got %+v", mock.createPropertyArg.Governorate)
+	}
+}
+
 func TestListProperties(t *testing.T) {
 	mock := &mockQueries{
 		properties: []db.Property{

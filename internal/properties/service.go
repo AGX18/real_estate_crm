@@ -90,9 +90,36 @@ func (s *Service) create(ctx context.Context, q db.Querier, params CreateParams)
 }
 
 func (s *Service) CreateMany(ctx context.Context, properties []CreateParams) ([]PropertyResult, error) {
-	results := make([]PropertyResult, 0, len(properties))
+	prepared := make([]CreateParams, 0, len(properties))
 	for _, property := range properties {
-		result, err := s.Create(ctx, property)
+		nextProperty, err := s.withEmbedding(ctx, property)
+		if err != nil {
+			return nil, err
+		}
+		prepared = append(prepared, nextProperty)
+	}
+
+	if s.store != nil {
+		results := make([]PropertyResult, 0, len(prepared))
+		err := s.store.WithTx(ctx, func(q db.Querier) error {
+			for _, property := range prepared {
+				result, err := s.create(ctx, q, property)
+				if err != nil {
+					return err
+				}
+				results = append(results, result)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
+	}
+
+	results := make([]PropertyResult, 0, len(properties))
+	for _, property := range prepared {
+		result, err := s.create(ctx, s.queries, property)
 		if err != nil {
 			return nil, err
 		}
