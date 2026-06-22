@@ -44,7 +44,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var body appointmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -56,7 +56,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	appointment, err := h.service.Create(r.Context(), params)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create appointment")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create appointment", err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		TenantID: tenantID,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusNotFound, "appointment not found")
+		httpx.WriteError(w, http.StatusNotFound, "appointment not found", err)
 		return
 	}
 
@@ -91,7 +91,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	if leadIDValue != "" {
 		leadID, err := httpx.ParseInt64(leadIDValue)
 		if err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid lead id")
+			httpx.WriteError(w, http.StatusBadRequest, "invalid lead id", err)
 			return
 		}
 		appointments, err := h.service.ListByLead(r.Context(), db.ListAppointmentsByLeadParams{
@@ -99,7 +99,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			TenantID: tenantID,
 		})
 		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch appointments")
+			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch appointments", err)
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, appointments)
@@ -108,7 +108,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	appointments, err := h.service.List(r.Context(), tenantID)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch appointments")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch appointments", err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var body appointmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	appointment, err := h.service.Update(r.Context(), params)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to update appointment")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to update appointment", err)
 		return
 	}
 
@@ -150,7 +150,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	var body appointmentStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if !validAppointmentStatus(body.Status) {
@@ -164,7 +164,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		TenantID: tenantID,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to update appointment")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to update appointment", err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.Delete(r.Context(), db.DeleteAppointmentParams{ID: appointmentID, TenantID: tenantID}); err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to delete appointment")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to delete appointment", err)
 		return
 	}
 
@@ -245,7 +245,7 @@ func updateParams(tenantID pgtype.UUID, appointmentID int64, body appointmentReq
 func parseTenantID(w http.ResponseWriter, r *http.Request) (pgtype.UUID, bool) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id", err)
 		return pgtype.UUID{}, false
 	}
 	return tenantID, true
@@ -259,7 +259,7 @@ func parseTenantAndAppointmentID(w http.ResponseWriter, r *http.Request) (pgtype
 
 	appointmentID, err := httpx.ParseInt64(chi.URLParam(r, "appointment_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid appointment id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid appointment id", err)
 		return pgtype.UUID{}, 0, false
 	}
 

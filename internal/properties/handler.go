@@ -120,7 +120,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var body propertyRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Embedding: body.Embedding,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create property")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create property", err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (h *Handler) CreateMany(w http.ResponseWriter, r *http.Request) {
 
 	var body []propertyRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if len(body) == 0 {
@@ -174,20 +174,20 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportFileSize)
 	if err := r.ParseMultipartForm(maxImportFileSize); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form", err)
 		return
 	}
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "file is required")
+		httpx.WriteError(w, http.StatusBadRequest, "file is required", err)
 		return
 	}
 	defer file.Close()
 
 	data, err := io.ReadAll(io.LimitReader(file, maxImportFileSize+1))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "failed to read file")
+		httpx.WriteError(w, http.StatusBadRequest, "failed to read file", err)
 		return
 	}
 	if len(data) > maxImportFileSize {
@@ -197,7 +197,7 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) {
 
 	properties, err := decodeImportProperties(data)
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid properties json")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid properties json", err)
 		return
 	}
 	if len(properties) == 0 {
@@ -229,7 +229,7 @@ func (h *Handler) createMany(w http.ResponseWriter, r *http.Request, tenantID pg
 
 	results, err := h.service.CreateMany(r.Context(), properties)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create properties")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create properties", err)
 		return
 	}
 
@@ -247,7 +247,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		TenantID: tenantID,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusNotFound, "property not found")
+		httpx.WriteError(w, http.StatusNotFound, "property not found", err)
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			Status:   propertyStatusParam(status),
 		})
 		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties")
+			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties", err)
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, properties)
@@ -281,7 +281,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			Type:     propertyTypeParam(propertyType),
 		})
 		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties")
+			httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties", err)
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, properties)
@@ -290,7 +290,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	properties, err := h.service.List(r.Context(), tenantID)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch properties", err)
 		return
 	}
 
@@ -305,7 +305,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var body propertyRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -325,7 +325,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Embedding: body.Embedding,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to update property")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to update property", err)
 		return
 	}
 
@@ -342,7 +342,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:       propertyID,
 		TenantID: tenantID,
 	}); err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to delete property")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to delete property", err)
 		return
 	}
 
@@ -357,13 +357,13 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	var body searchRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if len(body.Embedding) == 0 && strings.TrimSpace(body.Query) != "" {
 		embedding, err := h.service.Embed(r.Context(), body.Query)
 		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "failed to embed query")
+			httpx.WriteError(w, http.StatusInternalServerError, "failed to embed query", err)
 			return
 		}
 		body.Embedding = embedding
@@ -386,7 +386,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		Limit:     body.Limit,
 	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to search properties")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to search properties", err)
 		return
 	}
 
@@ -467,7 +467,7 @@ func updateParams(tenantID pgtype.UUID, propertyID int64, body propertyRequest) 
 func parseTenantID(w http.ResponseWriter, r *http.Request) (pgtype.UUID, bool) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id", err)
 		return pgtype.UUID{}, false
 	}
 	return tenantID, true
@@ -481,7 +481,7 @@ func parseTenantAndPropertyID(w http.ResponseWriter, r *http.Request) (pgtype.UU
 
 	propertyID, err := httpx.ParseInt64(chi.URLParam(r, "property_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid property id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid property id", err)
 		return pgtype.UUID{}, 0, false
 	}
 

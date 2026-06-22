@@ -129,13 +129,13 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) CreateCall(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id", err)
 		return
 	}
 
 	body, err := decodeCreateCallRequest(r)
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	params := body.toParams(tenantID)
@@ -146,7 +146,7 @@ func (h *Handler) CreateCall(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.CreateCall(r.Context(), params)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create call")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create call", err)
 		return
 	}
 
@@ -156,13 +156,13 @@ func (h *Handler) CreateCall(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateCallV2(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id", err)
 		return
 	}
 
 	body, err := decodeCreateCallV2Request(r)
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (h *Handler) CreateCallV2(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.CreateCall(r.Context(), params)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create call")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create call", err)
 		return
 	}
 
@@ -188,13 +188,13 @@ func (h *Handler) CreateCallV2(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListCalls(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := httpx.ParseUUID(chi.URLParam(r, "tenant_id"))
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid tenant id", err)
 		return
 	}
 
 	calls, err := h.service.ListCalls(r.Context(), tenantID)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch calls")
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to fetch calls", err)
 		return
 	}
 
