@@ -123,7 +123,7 @@ func (s *Service) createCall(ctx context.Context, q db.Querier, params CreateCal
 			TenantID:        params.TenantID,
 			LeadID:          lead.ID,
 			Title:           "Property viewing",
-			Notes:           textParam("Scheduled from V2 call summary. Day: " + params.Appointment.Day),
+			Notes:           textParam("Day: " + params.Appointment.Day),
 			Status:          appointmentStatusParam(db.AppointmentStatusScheduled),
 			AppointmentDay:  params.Appointment.Day,
 			AppointmentTime: params.Appointment.Time,
