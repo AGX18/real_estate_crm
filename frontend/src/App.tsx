@@ -16,7 +16,6 @@ import type {
   NullableDate,
   NullableNumber,
   NullableText,
-  NullableTime,
   NullableValue,
   Page,
   Property,
@@ -1043,7 +1042,6 @@ function AppointmentCard({
 }) {
   const status = appointmentStatus(appointment);
   const lead = leads.find((item) => item.id === appointment.lead_id);
-  const appointmentDate = dateValue(appointment.appointment_date);
 
   return (
     <article className="appointment-row">
@@ -1055,13 +1053,8 @@ function AppointmentCard({
         <small>{lead?.phone ?? `Lead #${appointment.lead_id}`}</small>
       </div>
       <div className="appointment-time">
-        <strong>
-          {appointment.appointment_day || appointmentDayLabel(appointmentDate)}
-        </strong>
-        <span>
-          {appointmentDateLabel(appointmentDate)} at{" "}
-          {appointmentTimeLabel(appointment.appointment_time)}
-        </span>
+        <strong>{appointment.appointment_day || "No day"}</strong>
+        <span>{appointmentTimeLabel(appointment.appointment_time)}</span>
       </div>
       <p>{textValue(appointment.notes) || "No notes"}</p>
     </article>
@@ -1575,46 +1568,12 @@ function dateLabel(value?: unknown) {
   }).format(new Date(rawValue));
 }
 
-function appointmentDayLabel(value?: unknown) {
-  const rawValue = dateValue(value);
-  if (!rawValue) {
-    return "No day";
-  }
-  return new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(
-    new Date(rawValue),
-  );
-}
-
-function appointmentDateLabel(value?: unknown) {
-  const rawValue = dateValue(value);
-  if (!rawValue) {
-    return "No date";
-  }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(rawValue),
-  );
-}
-
 function appointmentTimeLabel(value?: unknown) {
   if (!value) {
     return "No time";
   }
   if (typeof value === "string") {
     return value;
-  }
-  if (typeof value === "object") {
-    const timeValue = value as NullableTime;
-    const valid = timeValue.Valid ?? timeValue.valid ?? true;
-    if (!valid) {
-      return "No time";
-    }
-    const microseconds = timeValue.Microseconds ?? timeValue.microseconds;
-    if (typeof microseconds === "number") {
-      const totalMinutes = Math.floor(microseconds / 60000000);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    }
   }
   return "No time";
 }

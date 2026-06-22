@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/httpx"
@@ -53,7 +52,6 @@ type createCallV2Request struct {
 
 type v2Appointment struct {
 	Time string `json:"time"`
-	Date string `json:"date"`
 	Day  string `json:"day"`
 }
 
@@ -421,14 +419,9 @@ func (r createCallV2Request) appointmentParams() *CreateAppointmentParams {
 	if r.Appointment == nil {
 		return nil
 	}
-	appointmentDate, appointmentTime, err := parseV2AppointmentSchedule(*r.Appointment)
-	if err != nil {
-		return nil
-	}
 	return &CreateAppointmentParams{
-		Date: appointmentDate,
 		Day:  strings.TrimSpace(r.Appointment.Day),
-		Time: appointmentTime,
+		Time: strings.TrimSpace(r.Appointment.Time),
 	}
 }
 
@@ -824,24 +817,34 @@ func nullableAppointmentField(fields map[string]json.RawMessage, key string) (*v
 	if string(fields[key]) == "null" {
 		return nil, nil
 	}
+	var appointmentFields map[string]json.RawMessage
+	if err := json.Unmarshal(fields[key], &appointmentFields); err != nil {
+		return nil, fmt.Errorf("%s must be an object or null", key)
+	}
+	if len(appointmentFields) != 2 {
+		return nil, fmt.Errorf("appointment must contain exactly day and time")
+	}
+	for _, appointmentKey := range []string{"day", "time"} {
+		if _, ok := appointmentFields[appointmentKey]; !ok {
+			return nil, fmt.Errorf("appointment.%s is required", appointmentKey)
+		}
+	}
+	for appointmentKey := range appointmentFields {
+		if appointmentKey != "day" && appointmentKey != "time" {
+			return nil, fmt.Errorf("appointment.%s is not allowed", appointmentKey)
+		}
+	}
 	var value v2Appointment
 	if err := json.Unmarshal(fields[key], &value); err != nil {
 		return nil, fmt.Errorf("%s must be an object or null", key)
 	}
-	value.Date = strings.TrimSpace(value.Date)
 	value.Time = strings.TrimSpace(value.Time)
 	value.Day = strings.TrimSpace(value.Day)
-	if value.Date == "" {
-		return nil, fmt.Errorf("appointment.date is required")
-	}
 	if value.Time == "" {
 		return nil, fmt.Errorf("appointment.time is required")
 	}
 	if value.Day == "" {
 		return nil, fmt.Errorf("appointment.day is required")
-	}
-	if _, _, err := parseV2AppointmentSchedule(value); err != nil {
-		return nil, err
 	}
 	return &value, nil
 }
@@ -924,51 +927,6 @@ func validateV2Details(value string) error {
 		}
 	}
 	return nil
-}
-
-func parseV2AppointmentSchedule(value v2Appointment) (time.Time, time.Time, error) {
-	dateValue := strings.TrimSpace(value.Date)
-	timeValue := strings.TrimSpace(value.Time)
-	dateLayouts := []string{"2006-01-02", "02/01/2006", "01/02/2006"}
-	timeLayouts := []string{"15:04", "15:04:05", "3:04 PM", "3:04PM"}
-
-	var parsedDate time.Time
-	var dateErr error
-	for _, layout := range dateLayouts {
-		parsedDate, dateErr = time.ParseInLocation(layout, dateValue, time.Local)
-		if dateErr == nil {
-			break
-		}
-	}
-	if dateErr != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("appointment.date must be YYYY-MM-DD")
-	}
-
-	var parsedTime time.Time
-	var timeErr error
-	for _, layout := range timeLayouts {
-		parsedTime, timeErr = time.ParseInLocation(layout, timeValue, time.Local)
-		if timeErr == nil {
-			break
-		}
-	}
-	if timeErr != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("appointment.time must be HH:MM")
-	}
-	if !weekdayMatches(strings.TrimSpace(value.Day), parsedDate.Weekday()) {
-		return time.Time{}, time.Time{}, fmt.Errorf("appointment.day must match appointment.date")
-	}
-	return parsedDate, parsedTime, nil
-}
-
-func weekdayMatches(value string, weekday time.Weekday) bool {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	if normalized == "" {
-		return false
-	}
-	full := strings.ToLower(weekday.String())
-	short := full[:3]
-	return normalized == full || normalized == short
 }
 
 func firstNonEmpty(values ...string) string {

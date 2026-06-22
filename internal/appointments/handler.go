@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/httpx"
@@ -23,7 +22,6 @@ type appointmentRequest struct {
 	Title  string               `json:"title"`
 	Notes  string               `json:"notes"`
 	Status db.AppointmentStatus `json:"status"`
-	Date   string               `json:"date"`
 	Day    string               `json:"day"`
 	Time   string               `json:"time"`
 }
@@ -192,7 +190,7 @@ func createParams(tenantID pgtype.UUID, body appointmentRequest) (db.CreateAppoi
 	if strings.TrimSpace(body.Title) == "" {
 		return db.CreateAppointmentParams{}, fmt.Errorf("title is required")
 	}
-	appointmentDate, appointmentTime, appointmentDay, err := parseAppointmentSchedule(body.Date, body.Day, body.Time)
+	appointmentDay, appointmentTime, err := parseAppointmentSchedule(body.Day, body.Time)
 	if err != nil {
 		return db.CreateAppointmentParams{}, err
 	}
@@ -209,9 +207,8 @@ func createParams(tenantID pgtype.UUID, body appointmentRequest) (db.CreateAppoi
 		Title:           strings.TrimSpace(body.Title),
 		Notes:           textParam(body.Notes),
 		Status:          appointmentStatusParam(body.Status),
-		AppointmentDate: dateParam(appointmentDate),
 		AppointmentDay:  appointmentDay,
-		AppointmentTime: timeParam(appointmentTime),
+		AppointmentTime: appointmentTime,
 	}, nil
 }
 
@@ -219,7 +216,7 @@ func updateParams(tenantID pgtype.UUID, appointmentID int64, body appointmentReq
 	if strings.TrimSpace(body.Title) == "" {
 		return db.UpdateAppointmentParams{}, fmt.Errorf("title is required")
 	}
-	appointmentDate, appointmentTime, appointmentDay, err := parseAppointmentSchedule(body.Date, body.Day, body.Time)
+	appointmentDay, appointmentTime, err := parseAppointmentSchedule(body.Day, body.Time)
 	if err != nil {
 		return db.UpdateAppointmentParams{}, err
 	}
@@ -235,9 +232,8 @@ func updateParams(tenantID pgtype.UUID, appointmentID int64, body appointmentReq
 		Title:           strings.TrimSpace(body.Title),
 		Notes:           textParam(body.Notes),
 		Status:          appointmentStatusParam(body.Status),
-		AppointmentDate: dateParam(appointmentDate),
 		AppointmentDay:  appointmentDay,
-		AppointmentTime: timeParam(appointmentTime),
+		AppointmentTime: appointmentTime,
 		TenantID:        tenantID,
 	}, nil
 }
@@ -266,50 +262,16 @@ func parseTenantAndAppointmentID(w http.ResponseWriter, r *http.Request) (pgtype
 	return tenantID, appointmentID, true
 }
 
-func parseAppointmentSchedule(dateValue string, dayValue string, timeValue string) (time.Time, time.Time, string, error) {
-	dateValue = strings.TrimSpace(dateValue)
+func parseAppointmentSchedule(dayValue string, timeValue string) (string, string, error) {
 	dayValue = strings.TrimSpace(dayValue)
 	timeValue = strings.TrimSpace(timeValue)
-	if dateValue == "" {
-		return time.Time{}, time.Time{}, "", fmt.Errorf("date is required")
-	}
 	if dayValue == "" {
-		return time.Time{}, time.Time{}, "", fmt.Errorf("day is required")
+		return "", "", fmt.Errorf("day is required")
 	}
 	if timeValue == "" {
-		return time.Time{}, time.Time{}, "", fmt.Errorf("time is required")
+		return "", "", fmt.Errorf("time is required")
 	}
-
-	appointmentDate, err := time.ParseInLocation("2006-01-02", dateValue, time.Local)
-	if err != nil {
-		return time.Time{}, time.Time{}, "", fmt.Errorf("date must be YYYY-MM-DD")
-	}
-
-	appointmentTime, err := parseAppointmentTime(timeValue)
-	if err != nil {
-		return time.Time{}, time.Time{}, "", err
-	}
-	if !weekdayMatches(dayValue, appointmentDate.Weekday()) {
-		return time.Time{}, time.Time{}, "", fmt.Errorf("day must match date")
-	}
-
-	return appointmentDate, appointmentTime, dayValue, nil
-}
-
-func parseAppointmentTime(value string) (time.Time, error) {
-	for _, layout := range []string{"15:04", "15:04:05", "3:04 PM", "3:04PM"} {
-		parsed, err := time.ParseInLocation(layout, value, time.Local)
-		if err == nil {
-			return parsed, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("time must be HH:MM")
-}
-
-func weekdayMatches(value string, weekday time.Weekday) bool {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	full := strings.ToLower(weekday.String())
-	return normalized == full || normalized == full[:3]
+	return dayValue, timeValue, nil
 }
 
 func validAppointmentStatus(value db.AppointmentStatus) bool {
@@ -328,17 +290,6 @@ func textParam(value string) pgtype.Text {
 
 func int4Param(value int32) pgtype.Int4 {
 	return pgtype.Int4{Int32: value, Valid: value > 0}
-}
-
-func dateParam(value time.Time) pgtype.Date {
-	return pgtype.Date{Time: value, Valid: true}
-}
-
-func timeParam(value time.Time) pgtype.Time {
-	microseconds := int64(value.Hour()) * int64(time.Hour/time.Microsecond)
-	microseconds += int64(value.Minute()) * int64(time.Minute/time.Microsecond)
-	microseconds += int64(value.Second()) * int64(time.Second/time.Microsecond)
-	return pgtype.Time{Microseconds: microseconds, Valid: true}
 }
 
 func appointmentStatusParam(value db.AppointmentStatus) db.NullAppointmentStatus {

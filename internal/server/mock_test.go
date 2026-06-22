@@ -166,9 +166,6 @@ func (m *mockQueries) ListPropertiesByStatus(ctx context.Context, arg db.ListPro
 func (m *mockQueries) ListPropertiesByType(ctx context.Context, arg db.ListPropertiesByTypeParams) ([]db.Property, error) {
 	return m.properties, m.err
 }
-func (m *mockQueries) ListUpcomingAppointments(ctx context.Context, arg db.ListUpcomingAppointmentsParams) ([]db.Appointment, error) {
-	return m.appointments, m.err
-}
 func (m *mockQueries) RemoveLeadProperty(ctx context.Context, arg db.RemoveLeadPropertyParams) error {
 	return nil
 }

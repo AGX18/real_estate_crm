@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 
@@ -298,7 +297,7 @@ func TestCreateCallV2CreatesAppointment(t *testing.T) {
 		"transcript":"assistant: Hello\nuser: Tomorrow works",
 		"details":"Phone number: +201012345678\nBudget: 6M\nRooms: 3\nLocation: New Cairo\nProperty type: Apartment\nIntent: buy\nSentiment: positive\nCall outcome: qualified",
 		"call_summary":"Qualified call with +201012345678.",
-		"appointment":{"date":"2026-06-23","time":"14:30","day":"Tuesday"}
+		"appointment":{"time":"14:30","day":"Tuesday"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/v2/tenants/"+testTenantID+"/calls", body)
 	w := httptest.NewRecorder()
@@ -313,16 +312,11 @@ func TestCreateCallV2CreatesAppointment(t *testing.T) {
 	if mock.createAppointmentArg.Status.AppointmentStatus != db.AppointmentStatusScheduled {
 		t.Fatalf("expected scheduled appointment got %q", mock.createAppointmentArg.Status.AppointmentStatus)
 	}
-	expectedDate := time.Date(2026, time.June, 23, 0, 0, 0, 0, time.Local)
-	if !mock.createAppointmentArg.AppointmentDate.Time.Equal(expectedDate) {
-		t.Fatalf("expected appointment date %s got %s", expectedDate, mock.createAppointmentArg.AppointmentDate.Time)
-	}
 	if mock.createAppointmentArg.AppointmentDay != "Tuesday" {
 		t.Fatalf("expected appointment day Tuesday got %q", mock.createAppointmentArg.AppointmentDay)
 	}
-	expectedTime := int64(14*time.Hour/time.Microsecond + 30*time.Minute/time.Microsecond)
-	if mock.createAppointmentArg.AppointmentTime.Microseconds != expectedTime {
-		t.Fatalf("expected appointment time %d got %d", expectedTime, mock.createAppointmentArg.AppointmentTime.Microseconds)
+	if mock.createAppointmentArg.AppointmentTime != "14:30" {
+		t.Fatalf("expected appointment time 14:30 got %q", mock.createAppointmentArg.AppointmentTime)
 	}
 }
 

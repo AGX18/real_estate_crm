@@ -71,9 +71,8 @@ export type Appointment = {
   title: string
   notes?: NullableText | string | null
   status?: NullableValue<AppointmentStatus> | AppointmentStatus | null
-  appointment_date?: unknown
   appointment_day?: string
-  appointment_time?: unknown
+  appointment_time?: string
   created_at?: unknown
   updated_at?: unknown
 }
