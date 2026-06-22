@@ -2,133 +2,28 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import heroImage from './assets/hero.png'
 import './App.css'
-
-type Role = 'user' | 'admin'
-type LeadStatus = 'Follow_Up' | 'qualified' | 'closed' | 'unqualified'
-type PropertyStatus = 'available' | 'sold' | 'rented'
-type CallOutcome = 'follow_up' | 'qualified' | 'closed' | 'unqualified' | 'no_answer'
-type CallSentiment = 'positive' | 'negative' | 'neutral'
-type AppointmentStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show'
-
-type Broker = {
-  id: number
-  tenant_id: string
-  username: string
-  email: string
-  role: Role
-  created_at?: string
-  updated_at?: string
-}
-
-type LoginResult = {
-  token: string
-  broker: Broker
-}
-
-type Session = LoginResult & {
-  tenantName: string
-}
-
-type Lead = {
-  id: number
-  tenant_id: string
-  phone: string
-  description?: NullableText | string | null
-  status?: NullableValue<LeadStatus> | LeadStatus | null
-  created_at?: string
-  updated_at?: string
-}
-
-type Property = {
-  id: number
-  tenant_id: string
-  description?: NullableText | string | null
-  price?: unknown
-  location?: NullableText | string | null
-  area_sqm?: unknown
-  type?: NullableValue<string> | string | null
-  city?: NullableText | string | null
-  governorate?: NullableText | string | null
-  bedrooms: number
-  bathrooms: number
-  status?: NullableValue<PropertyStatus> | PropertyStatus | null
-  created_at?: string
-  updated_at?: string
-}
-
-type Call = {
-  id: number
-  tenant_id: string
-  lead_id?: NullableNumber | number | null
-  transcript?: NullableText | string | null
-  details?: NullableText | string | null
-  summary?: NullableText | string | null
-  sentiment?: NullableValue<CallSentiment> | CallSentiment | null
-  outcome?: NullableValue<CallOutcome> | CallOutcome | null
-  duration_secs?: NullableNumber | number | null
-  created_at?: string
-}
-
-type Appointment = {
-  id: number
-  tenant_id: string
-  lead_id: number
-  title: string
-  notes?: NullableText | string | null
-  status?: NullableValue<AppointmentStatus> | AppointmentStatus | null
-  appointment_date?: unknown
-  appointment_day?: string
-  appointment_time?: unknown
-  created_at?: unknown
-  updated_at?: unknown
-}
-
-type NullableText = {
-  String?: string
-  string?: string
-  Valid?: boolean
-  valid?: boolean
-}
-
-type NullableNumber = {
-  Int32?: number
-  Int64?: number
-  int32?: number
-  int64?: number
-  Valid?: boolean
-  valid?: boolean
-}
-
-type NullableDate = {
-  Time?: string
-  time?: string
-  Valid?: boolean
-  valid?: boolean
-}
-
-type NullableTime = {
-  Microseconds?: number
-  microseconds?: number
-  Valid?: boolean
-  valid?: boolean
-}
-
-type NullableValue<T extends string> = {
-  [key: string]: T | boolean | undefined
-  Valid?: boolean
-  valid?: boolean
-}
-
-type LoadState = 'idle' | 'loading' | 'ready' | 'error'
-type Page = 'dashboard' | 'leads' | 'appointments' | 'properties' | 'calls' | 'brokers'
-type DashboardMetrics = {
-  qualified: number
-  followUps: number
-  available: number
-  closedInventory: number
-  qualifiedCalls: number
-  upcomingAppointments: number
-}
+import type {
+  Appointment,
+  AppointmentStatus,
+  Broker,
+  Call,
+  CallOutcome,
+  DashboardMetrics,
+  Lead,
+  LeadStatus,
+  LoadState,
+  LoginResult,
+  NullableDate,
+  NullableNumber,
+  NullableText,
+  NullableTime,
+  NullableValue,
+  Page,
+  Property,
+  PropertyStatus,
+  Role,
+  Session,
+} from './types'
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 const sessionKey = 'real_estate_crm_session'
