@@ -1,18 +1,19 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE EXTENSION vector;
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS property_embeddings (
-    id          BIGSERIAL PRIMARY KEY,
-    tenant_id   UUID NOT NULL REFERENCES tenants(id),
-    property_id BIGINT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    embedding   vector(1536),
-    content     TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants (id),
+    property_id BIGINT NOT NULL REFERENCES properties (id) ON DELETE CASCADE,
+    embedding vector (1536),
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ON property_embeddings
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS property_embeddings_tenant_id_idx ON property_embeddings (tenant_id);
+
+CREATE INDEX IF NOT EXISTS property_embeddings_embedding_hnsw_idx ON property_embeddings USING hnsw (embedding vector_cosine_ops);
 -- +goose StatementEnd
 
 -- +goose Down
