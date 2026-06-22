@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import heroImage from './assets/hero.png'
-import './App.css'
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import heroImage from "./assets/hero.png";
+import "./App.css";
 import type {
   Appointment,
   AppointmentStatus,
@@ -23,180 +23,251 @@ import type {
   PropertyStatus,
   Role,
   Session,
-} from './types'
+} from "./types";
 
-const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
-const sessionKey = 'real_estate_crm_session'
+const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const sessionKey = "real_estate_crm_session";
 
 const leadLabels: Record<LeadStatus, string> = {
-  Follow_Up: 'Follow up',
-  qualified: 'Qualified',
-  closed: 'Closed',
-  unqualified: 'Unqualified',
-}
+  Follow_Up: "Follow up",
+  qualified: "Qualified",
+  closed: "Closed",
+  unqualified: "Unqualified",
+};
 
 const propertyStatusLabels: Record<PropertyStatus, string> = {
-  available: 'Available',
-  sold: 'Sold',
-  rented: 'Rented',
-}
+  available: "Available",
+  sold: "Sold",
+  rented: "Rented",
+};
 
 const callOutcomeLabels: Record<CallOutcome, string> = {
-  follow_up: 'Follow up',
-  qualified: 'Qualified',
-  closed: 'Closed',
-  unqualified: 'Unqualified',
-  no_answer: 'No answer',
-}
+  follow_up: "Follow up",
+  qualified: "Qualified",
+  closed: "Closed",
+  unqualified: "Unqualified",
+  no_answer: "No answer",
+};
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
-  scheduled: 'Scheduled',
-  completed: 'Completed',
-  canceled: 'Canceled',
-  no_show: 'No show',
-}
+  scheduled: "Scheduled",
+  completed: "Completed",
+  canceled: "Canceled",
+  no_show: "No show",
+};
 
 const pageTitles: Record<Page, string> = {
-  dashboard: 'Real estate command center',
-  leads: 'Leads',
-  appointments: 'Appointments',
-  properties: 'Properties',
-  calls: 'Calls',
-  brokers: 'Brokers',
-}
+  dashboard: "Dashboard",
+  leads: "Leads",
+  appointments: "Appointments",
+  properties: "Properties",
+  calls: "Calls",
+  brokers: "Brokers",
+};
 
 function App() {
-  const [session, setSession] = useState<Session | null>(() => loadSession())
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [properties, setProperties] = useState<Property[]>([])
-  const [brokers, setBrokers] = useState<Broker[]>([])
-  const [calls, setCalls] = useState<Call[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loadState, setLoadState] = useState<LoadState>('idle')
-  const [error, setError] = useState('')
-  const [propertyFilter, setPropertyFilter] = useState<PropertyStatus | 'all'>('all')
-  const [selectedLeadID, setSelectedLeadID] = useState<number | null>(null)
-  const [activePage, setActivePage] = useState<Page>(() => pageFromHash(window.location.hash))
+  const [session, setSession] = useState<Session | null>(() => loadSession());
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [brokers, setBrokers] = useState<Broker[]>([]);
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [error, setError] = useState("");
+  const [propertyFilter, setPropertyFilter] = useState<PropertyStatus | "all">(
+    "all",
+  );
+  const [selectedLeadID, setSelectedLeadID] = useState<number | null>(null);
+  const [activePage, setActivePage] = useState<Page>(() =>
+    pageFromHash(window.location.hash),
+  );
 
-  const isAdmin = session?.broker.role === 'admin'
-  const navItems: Page[] = ['dashboard', 'leads', 'appointments', 'properties', 'calls', ...(isAdmin ? (['brokers'] as Page[]) : [])]
-  const currentPage = activePage === 'brokers' && !isAdmin ? 'dashboard' : activePage
+  const isAdmin = session?.broker.role === "admin";
+  const navItems: Page[] = [
+    "dashboard",
+    "leads",
+    "appointments",
+    "properties",
+    "calls",
+    ...(isAdmin ? (["brokers"] as Page[]) : []),
+  ];
+  const currentPage =
+    activePage === "brokers" && !isAdmin ? "dashboard" : activePage;
   const refreshDashboard = () => {
     if (!session) {
-      return
+      return;
     }
-    reload(session, isAdmin, setLeads, setProperties, setBrokers, setCalls, setAppointments, setLoadState, setError, setSelectedLeadID)
-  }
+    reload(
+      session,
+      isAdmin,
+      setLeads,
+      setProperties,
+      setBrokers,
+      setCalls,
+      setAppointments,
+      setLoadState,
+      setError,
+      setSelectedLeadID,
+    );
+  };
 
   useEffect(() => {
     function syncPage() {
-      setActivePage(pageFromHash(window.location.hash))
+      setActivePage(pageFromHash(window.location.hash));
     }
 
-    window.addEventListener('hashchange', syncPage)
-    return () => window.removeEventListener('hashchange', syncPage)
-  }, [])
+    window.addEventListener("hashchange", syncPage);
+    return () => window.removeEventListener("hashchange", syncPage);
+  }, []);
 
   useEffect(() => {
     if (!session) {
-      return
+      return;
     }
 
-    let cancelled = false
+    let cancelled = false;
     Promise.all([
-      apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
-      apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
-      apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
-      apiGet<Appointment[]>(`/tenants/${session.broker.tenant_id}/appointments`, session.token),
+      apiGet<Lead[]>(
+        `/tenants/${session.broker.tenant_id}/leads`,
+        session.token,
+      ),
+      apiGet<Property[]>(
+        `/tenants/${session.broker.tenant_id}/properties`,
+        session.token,
+      ),
+      apiGet<Call[]>(
+        `/tenants/${session.broker.tenant_id}/calls`,
+        session.token,
+      ),
+      apiGet<Appointment[]>(
+        `/tenants/${session.broker.tenant_id}/appointments`,
+        session.token,
+      ),
       isAdmin
-        ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
+        ? apiGet<Broker[]>(
+            `/tenants/${session.broker.tenant_id}/brokers`,
+            session.token,
+          )
         : Promise.resolve([]),
     ])
-      .then(([nextLeads, nextProperties, nextCalls, nextAppointments, nextBrokers]) => {
-        if (cancelled) {
-          return
-        }
-        applyDashboardData(
+      .then(
+        ([
           nextLeads,
           nextProperties,
-          nextBrokers,
           nextCalls,
           nextAppointments,
-          setLeads,
-          setProperties,
-          setBrokers,
-          setCalls,
-          setAppointments,
-          setSelectedLeadID,
-        )
-        setLoadState('ready')
-      })
+          nextBrokers,
+        ]) => {
+          if (cancelled) {
+            return;
+          }
+          applyDashboardData(
+            nextLeads,
+            nextProperties,
+            nextBrokers,
+            nextCalls,
+            nextAppointments,
+            setLeads,
+            setProperties,
+            setBrokers,
+            setCalls,
+            setAppointments,
+            setSelectedLeadID,
+          );
+          setLoadState("ready");
+        },
+      )
       .catch((err: Error) => {
         if (cancelled) {
-          return
+          return;
         }
-        setError(err.message)
-        setLoadState('error')
-      })
+        setError(err.message);
+        setLoadState("error");
+      });
 
     return () => {
-      cancelled = true
-    }
-  }, [isAdmin, session])
+      cancelled = true;
+    };
+  }, [isAdmin, session]);
 
   const metrics = useMemo(() => {
-    const qualified = leads.filter((lead) => leadStatus(lead) === 'qualified').length
-    const followUps = leads.filter((lead) => leadStatus(lead) === 'Follow_Up').length
-    const available = properties.filter((property) => propertyStatus(property) === 'available').length
+    const qualified = leads.filter(
+      (lead) => leadStatus(lead) === "qualified",
+    ).length;
+    const followUps = leads.filter(
+      (lead) => leadStatus(lead) === "Follow_Up",
+    ).length;
+    const available = properties.filter(
+      (property) => propertyStatus(property) === "available",
+    ).length;
     const closedInventory = properties.filter((property) => {
-      const status = propertyStatus(property)
-      return status === 'sold' || status === 'rented'
-    }).length
-    const qualifiedCalls = calls.filter((call) => callOutcome(call) === 'qualified').length
-    const upcomingAppointments = appointments.filter((appointment) => appointmentStatus(appointment) === 'scheduled').length
+      const status = propertyStatus(property);
+      return status === "sold" || status === "rented";
+    }).length;
+    const qualifiedCalls = calls.filter(
+      (call) => callOutcome(call) === "qualified",
+    ).length;
+    const upcomingAppointments = appointments.filter(
+      (appointment) => appointmentStatus(appointment) === "scheduled",
+    ).length;
 
-    return { qualified, followUps, available, closedInventory, qualifiedCalls, upcomingAppointments }
-  }, [appointments, calls, leads, properties])
+    return {
+      qualified,
+      followUps,
+      available,
+      closedInventory,
+      qualifiedCalls,
+      upcomingAppointments,
+    };
+  }, [appointments, calls, leads, properties]);
 
   const propertyCounts = useMemo(
     () => ({
       all: properties.length,
-      available: properties.filter((property) => propertyStatus(property) === 'available').length,
-      sold: properties.filter((property) => propertyStatus(property) === 'sold').length,
-      rented: properties.filter((property) => propertyStatus(property) === 'rented').length,
+      available: properties.filter(
+        (property) => propertyStatus(property) === "available",
+      ).length,
+      sold: properties.filter((property) => propertyStatus(property) === "sold")
+        .length,
+      rented: properties.filter(
+        (property) => propertyStatus(property) === "rented",
+      ).length,
     }),
     [properties],
-  )
+  );
 
   const filteredProperties = useMemo(
     () =>
-      propertyFilter === 'all'
+      propertyFilter === "all"
         ? properties
-        : properties.filter((property) => propertyStatus(property) === propertyFilter),
+        : properties.filter(
+            (property) => propertyStatus(property) === propertyFilter,
+          ),
     [properties, propertyFilter],
-  )
+  );
 
-  const selectedLead = leads.find((lead) => lead.id === selectedLeadID) ?? leads[0]
+  const selectedLead =
+    leads.find((lead) => lead.id === selectedLeadID) ?? leads[0];
 
   function handleLogin(nextSession: Session) {
-    localStorage.setItem(sessionKey, JSON.stringify(nextSession))
-    setSession(nextSession)
+    localStorage.setItem(sessionKey, JSON.stringify(nextSession));
+    setSession(nextSession);
   }
 
   function handleLogout() {
-    localStorage.removeItem(sessionKey)
-    setSession(null)
-    setLeads([])
-    setProperties([])
-    setBrokers([])
-    setCalls([])
-    setAppointments([])
-    setSelectedLeadID(null)
-    setLoadState('idle')
+    localStorage.removeItem(sessionKey);
+    setSession(null);
+    setLeads([]);
+    setProperties([]);
+    setBrokers([]);
+    setCalls([]);
+    setAppointments([]);
+    setSelectedLeadID(null);
+    setLoadState("idle");
   }
 
   if (!session) {
-    return <LoginScreen onLogin={handleLogin} />
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
@@ -213,7 +284,7 @@ function App() {
         <nav className="nav-list">
           {navItems.map((item) => (
             <a
-              className={item === currentPage ? 'active' : ''}
+              className={item === currentPage ? "active" : ""}
               href={`#${item}`}
               key={item}
             >
@@ -238,20 +309,28 @@ function App() {
             <h1>{pageTitles[currentPage]}</h1>
           </div>
           <div className="topbar-actions">
-            {isAdmin && currentPage === 'properties' && <PropertyImport session={session} onImported={refreshDashboard} />}
-            <button className="secondary-button" onClick={refreshDashboard}>Refresh</button>
-            <button className="secondary-button" onClick={handleLogout}>Logout</button>
+            {isAdmin && currentPage === "properties" && (
+              <PropertyImport session={session} onImported={refreshDashboard} />
+            )}
+            <button className="secondary-button" onClick={refreshDashboard}>
+              Refresh
+            </button>
+            <button className="secondary-button" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </header>
 
-        {loadState === 'error' && <p className="error-banner">{error}</p>}
-        {loadState === 'loading' && <p className="loading-banner">Loading tenant data...</p>}
+        {loadState === "error" && <p className="error-banner">{error}</p>}
+        {loadState === "loading" && (
+          <p className="loading-banner">Loading tenant data...</p>
+        )}
 
-        {currentPage === 'dashboard' && (
+        {currentPage === "dashboard" && (
           <DashboardPage metrics={metrics} isAdmin={isAdmin} />
         )}
 
-        {currentPage === 'leads' && (
+        {currentPage === "leads" && (
           <LeadsPage
             leads={leads}
             selectedLead={selectedLead}
@@ -259,11 +338,11 @@ function App() {
           />
         )}
 
-        {currentPage === 'appointments' && (
+        {currentPage === "appointments" && (
           <AppointmentsPage appointments={appointments} leads={leads} />
         )}
 
-        {currentPage === 'properties' && (
+        {currentPage === "properties" && (
           <PropertiesPage
             filteredProperties={filteredProperties}
             propertyCounts={propertyCounts}
@@ -272,38 +351,71 @@ function App() {
           />
         )}
 
-        {currentPage === 'calls' && (
-          <CallsPage calls={calls} leads={leads} />
-        )}
+        {currentPage === "calls" && <CallsPage calls={calls} leads={leads} />}
 
-        {currentPage === 'brokers' && isAdmin && (
-          <BrokersPage brokers={brokers} session={session} onCreated={refreshDashboard} />
+        {currentPage === "brokers" && isAdmin && (
+          <BrokersPage
+            brokers={brokers}
+            session={session}
+            onCreated={refreshDashboard}
+          />
         )}
       </section>
     </main>
-  )
+  );
 }
 
-function DashboardPage({ metrics, isAdmin }: { metrics: DashboardMetrics; isAdmin: boolean }) {
+function DashboardPage({
+  metrics,
+  isAdmin,
+}: {
+  metrics: DashboardMetrics;
+  isAdmin: boolean;
+}) {
   return (
     <>
       <section className="hero-band">
         <div className="hero-copy">
-          <p className="eyebrow">{isAdmin ? 'Admin workspace' : 'Broker workspace'}</p>
-          <h2>Review tenant performance, then open leads, properties, or calls from the sidebar.</h2>
+          <p className="eyebrow">
+            {isAdmin ? "Admin workspace" : "Broker workspace"}
+          </p>
+          <h2>
+            Review tenant performance, then open leads, properties, or calls
+            from the sidebar.
+          </h2>
         </div>
         <img src={heroImage} alt="CRM dashboard preview" />
       </section>
 
       <section className="metrics-grid" aria-label="Business metrics">
-        <Metric label="Qualified leads" value={String(metrics.qualified)} trend="ready to move" />
-        <Metric label="Follow-ups" value={String(metrics.followUps)} trend="needs next action" />
-        <Metric label="Available units" value={String(metrics.available)} trend="open inventory" />
-        <Metric label="Qualified calls" value={String(metrics.qualifiedCalls)} trend="voice outcomes" />
-        <Metric label="Appointments" value={String(metrics.upcomingAppointments)} trend="scheduled next" />
+        <Metric
+          label="Qualified leads"
+          value={String(metrics.qualified)}
+          trend="ready to move"
+        />
+        <Metric
+          label="Follow-ups"
+          value={String(metrics.followUps)}
+          trend="needs next action"
+        />
+        <Metric
+          label="Available units"
+          value={String(metrics.available)}
+          trend="open inventory"
+        />
+        <Metric
+          label="Qualified calls"
+          value={String(metrics.qualifiedCalls)}
+          trend="voice outcomes"
+        />
+        <Metric
+          label="Appointments"
+          value={String(metrics.upcomingAppointments)}
+          trend="scheduled next"
+        />
       </section>
     </>
-  )
+  );
 }
 
 function LeadsPage({
@@ -311,9 +423,9 @@ function LeadsPage({
   selectedLead,
   onSelectLead,
 }: {
-  leads: Lead[]
-  selectedLead: Lead | undefined
-  onSelectLead: (value: number | null) => void
+  leads: Lead[];
+  selectedLead: Lead | undefined;
+  onSelectLead: (value: number | null) => void;
 }) {
   return (
     <section className="content-grid page-content">
@@ -326,21 +438,25 @@ function LeadsPage({
         </div>
 
         <div className="lead-list">
-          {leads.length === 0 && <EmptyState message="No leads found for this tenant." />}
+          {leads.length === 0 && (
+            <EmptyState message="No leads found for this tenant." />
+          )}
           {leads.map((lead) => {
-            const description = leadDescription(lead)
+            const description = leadDescription(lead);
             return (
               <button
-                className={`lead-card ${selectedLead?.id === lead.id ? 'selected' : ''}`}
+                className={`lead-card ${selectedLead?.id === lead.id ? "selected" : ""}`}
                 key={lead.id}
                 onClick={() => onSelectLead(lead.id)}
               >
-                <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>{leadLabels[leadStatus(lead)]}</span>
+                <span className={`badge ${leadStatusClass(leadStatus(lead))}`}>
+                  {leadLabels[leadStatus(lead)]}
+                </span>
                 <strong>{lead.phone}</strong>
-                <span>{description.summary || 'No description'}</span>
+                <span>{description.summary || "No description"}</span>
                 <small>{dateLabel(lead.created_at)}</small>
               </button>
-            )
+            );
           })}
         </div>
       </div>
@@ -349,9 +465,15 @@ function LeadsPage({
         <div className="panel-header">
           <div>
             <p className="eyebrow">Selected lead</p>
-            <h2>{selectedLead ? selectedLead.phone : 'No lead selected'}</h2>
+            <h2>{selectedLead ? selectedLead.phone : "No lead selected"}</h2>
           </div>
-          {selectedLead && <span className={`badge ${leadStatusClass(leadStatus(selectedLead))}`}>{leadLabels[leadStatus(selectedLead)]}</span>}
+          {selectedLead && (
+            <span
+              className={`badge ${leadStatusClass(leadStatus(selectedLead))}`}
+            >
+              {leadLabels[leadStatus(selectedLead)]}
+            </span>
+          )}
         </div>
         {selectedLead ? (
           <dl className="detail-list lead-detail-list">
@@ -366,7 +488,7 @@ function LeadsPage({
         )}
       </div>
     </section>
-  )
+  );
 }
 
 function PropertiesPage({
@@ -375,13 +497,16 @@ function PropertiesPage({
   propertyFilter,
   onFilterChange,
 }: {
-  filteredProperties: Property[]
-  propertyCounts: Record<PropertyStatus | 'all', number>
-  propertyFilter: PropertyStatus | 'all'
-  onFilterChange: (value: PropertyStatus | 'all') => void
+  filteredProperties: Property[];
+  propertyCounts: Record<PropertyStatus | "all", number>;
+  propertyFilter: PropertyStatus | "all";
+  onFilterChange: (value: PropertyStatus | "all") => void;
 }) {
   return (
-    <section className="content-grid inventory-grid page-content" id="properties">
+    <section
+      className="content-grid inventory-grid page-content"
+      id="properties"
+    >
       <div className="panel wide-panel">
         <div className="panel-header">
           <div>
@@ -389,9 +514,9 @@ function PropertiesPage({
             <h2>Properties</h2>
           </div>
           <div className="filter-tabs" aria-label="Property filters">
-            {(['all', 'available', 'sold', 'rented'] as const).map((status) => (
+            {(["all", "available", "sold", "rented"] as const).map((status) => (
               <button
-                className={propertyFilter === status ? 'active' : ''}
+                className={propertyFilter === status ? "active" : ""}
                 key={status}
                 onClick={() => onFilterChange(status)}
               >
@@ -402,12 +527,21 @@ function PropertiesPage({
         </div>
 
         <div className="property-table">
-          {filteredProperties.length === 0 && <EmptyState message="No properties match this filter." />}
+          {filteredProperties.length === 0 && (
+            <EmptyState message="No properties match this filter." />
+          )}
           {filteredProperties.map((property) => (
             <article className="property-row" key={property.id}>
               <div>
-                <strong>{textValue(property.description) || `Property #${property.id}`}</strong>
-                <span>{valueLabel(propertyType(property))} · {textValue(property.city) || 'No city'} · {textValue(property.location) || 'No location'}</span>
+                <strong>
+                  {textValue(property.description) ||
+                    `Property #${property.id}`}
+                </strong>
+                <span>
+                  {valueLabel(propertyType(property))} ·{" "}
+                  {textValue(property.city) || "No city"} ·{" "}
+                  {textValue(property.location) || "No location"}
+                </span>
               </div>
               <div className="property-specs">
                 <span>{property.bedrooms} bed</span>
@@ -421,12 +555,21 @@ function PropertiesPage({
         </div>
       </div>
     </section>
-  )
+  );
 }
 
-function AppointmentsPage({ appointments, leads }: { appointments: Appointment[]; leads: Lead[] }) {
+function AppointmentsPage({
+  appointments,
+  leads,
+}: {
+  appointments: Appointment[];
+  leads: Lead[];
+}) {
   return (
-    <section className="panel appointments-panel page-content" id="appointments">
+    <section
+      className="panel appointments-panel page-content"
+      id="appointments"
+    >
       <div className="panel-header">
         <div>
           <p className="eyebrow">Lead schedule</p>
@@ -434,13 +577,19 @@ function AppointmentsPage({ appointments, leads }: { appointments: Appointment[]
         </div>
       </div>
       <div className="appointments-list">
-        {appointments.length === 0 && <EmptyState message="No appointments found for this tenant." />}
+        {appointments.length === 0 && (
+          <EmptyState message="No appointments found for this tenant." />
+        )}
         {appointments.map((appointment) => (
-          <AppointmentCard appointment={appointment} leads={leads} key={appointment.id} />
+          <AppointmentCard
+            appointment={appointment}
+            leads={leads}
+            key={appointment.id}
+          />
         ))}
       </div>
     </section>
-  )
+  );
 }
 
 function CallsPage({ calls, leads }: { calls: Call[]; leads: Lead[] }) {
@@ -453,13 +602,15 @@ function CallsPage({ calls, leads }: { calls: Call[]; leads: Lead[] }) {
         </div>
       </div>
       <div className="calls-list">
-        {calls.length === 0 && <EmptyState message="No calls found for this tenant." />}
+        {calls.length === 0 && (
+          <EmptyState message="No calls found for this tenant." />
+        )}
         {calls.map((call) => (
           <CallCard call={call} leads={leads} key={call.id} />
         ))}
       </div>
     </section>
-  )
+  );
 }
 
 function BrokersPage({
@@ -467,9 +618,9 @@ function BrokersPage({
   session,
   onCreated,
 }: {
-  brokers: Broker[]
-  session: Session
-  onCreated: () => void
+  brokers: Broker[];
+  session: Session;
+  onCreated: () => void;
 }) {
   return (
     <section className="panel page-content" id="brokers">
@@ -479,15 +630,16 @@ function BrokersPage({
           <h2>Brokers</h2>
         </div>
       </div>
-      <BrokerCreateForm
-        session={session}
-        onCreated={onCreated}
-      />
+      <BrokerCreateForm session={session} onCreated={onCreated} />
       <div className="broker-list">
-        {brokers.length === 0 && <EmptyState message="No brokers found for this tenant." />}
+        {brokers.length === 0 && (
+          <EmptyState message="No brokers found for this tenant." />
+        )}
         {brokers.map((broker) => (
           <article className="broker-card" key={broker.id}>
-            <span className="broker-avatar">{broker.username.slice(0, 2).toUpperCase()}</span>
+            <span className="broker-avatar">
+              {broker.username.slice(0, 2).toUpperCase()}
+            </span>
             <div>
               <strong>{broker.username}</strong>
               <small>{broker.email}</small>
@@ -497,26 +649,26 @@ function BrokersPage({
         ))}
       </div>
     </section>
-  )
+  );
 }
 
 function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [tenantName, setTenantName] = useState('')
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [tenantName, setTenantName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSubmitting(true)
-    setError('')
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    const path = mode === 'login' ? '/login' : '/register'
+    const path = mode === "login" ? "/login" : "/register";
     const body =
-      mode === 'login'
+      mode === "login"
         ? {
             tenant_name: tenantName.trim(),
             email: email.trim(),
@@ -527,12 +679,12 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
             admin_username: username.trim(),
             admin_email: email.trim(),
             admin_password: password,
-          }
+          };
 
     apiPost<LoginResult>(path, body)
       .then((result) => onLogin({ ...result, tenantName: tenantName.trim() }))
       .catch((err: Error) => setError(err.message))
-      .finally(() => setSubmitting(false))
+      .finally(() => setSubmitting(false));
   }
 
   return (
@@ -546,56 +698,98 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
           </div>
         </div>
         <div>
-          <p className="eyebrow">{mode === 'login' ? 'Tenant login' : 'Tenant registration'}</p>
-          <h1>{mode === 'login' ? 'Sign in with your company name' : 'Create a tenant and admin account'}</h1>
+          <p className="eyebrow">
+            {mode === "login" ? "Tenant login" : "Tenant registration"}
+          </p>
+          <h1>
+            {mode === "login"
+              ? "Sign in with your company name"
+              : "Create a tenant and admin account"}
+          </h1>
         </div>
         <div className="mode-switch" aria-label="Authentication mode">
-          <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => setMode('login')}>
+          <button
+            className={mode === "login" ? "active" : ""}
+            type="button"
+            onClick={() => setMode("login")}
+          >
             Sign in
           </button>
-          <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => setMode('register')}>
+          <button
+            className={mode === "register" ? "active" : ""}
+            type="button"
+            onClick={() => setMode("register")}
+          >
             Register
           </button>
         </div>
         <label>
           Tenant name
-          <input value={tenantName} onChange={(event) => setTenantName(event.target.value)} required />
+          <input
+            value={tenantName}
+            onChange={(event) => setTenantName(event.target.value)}
+            required
+          />
         </label>
-        {mode === 'register' && (
+        {mode === "register" && (
           <label>
             Admin username
-            <input value={username} onChange={(event) => setUsername(event.target.value)} required />
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+            />
           </label>
         )}
         <label>
-          {mode === 'login' ? 'Email' : 'Admin email'}
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          {mode === "login" ? "Email" : "Admin email"}
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
         </label>
         <label>
-          {mode === 'login' ? 'Password' : 'Admin password'}
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          {mode === "login" ? "Password" : "Admin password"}
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
         </label>
         {error && <p className="form-error">{error}</p>}
         <button className="primary-button" disabled={submitting}>
-          {submitting ? 'Working...' : mode === 'login' ? 'Sign in' : 'Create tenant'}
+          {submitting
+            ? "Working..."
+            : mode === "login"
+              ? "Sign in"
+              : "Create tenant"}
         </button>
       </form>
     </main>
-  )
+  );
 }
 
-function BrokerCreateForm({ session, onCreated }: { session: Session; onCreated: () => void }) {
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState<Role>('user')
-  const [submitting, setSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
+function BrokerCreateForm({
+  session,
+  onCreated,
+}: {
+  session: Session;
+  onCreated: () => void;
+}) {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<Role>("user");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
 
   function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSubmitting(true)
-    setMessage('')
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage("");
 
     apiPost<Broker>(
       `/tenants/${session.broker.tenant_id}/brokers`,
@@ -608,77 +802,100 @@ function BrokerCreateForm({ session, onCreated }: { session: Session; onCreated:
       session.token,
     )
       .then(() => {
-        setUsername('')
-        setEmail('')
-        setPassword('')
-        setRole('user')
-        setMessage('Broker created.')
-        onCreated()
+        setUsername("");
+        setEmail("");
+        setPassword("");
+        setRole("user");
+        setMessage("Broker created.");
+        onCreated();
       })
       .catch((err: Error) => setMessage(err.message))
-      .finally(() => setSubmitting(false))
+      .finally(() => setSubmitting(false));
   }
 
   return (
     <form className="broker-form" onSubmit={submit}>
       <label>
         Username
-        <input value={username} onChange={(event) => setUsername(event.target.value)} required />
+        <input
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          required
+        />
       </label>
       <label>
         Email
-        <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
       </label>
       <label>
         Password
-        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
       </label>
       <label>
         Role
-        <select value={role} onChange={(event) => setRole(event.target.value as Role)}>
+        <select
+          value={role}
+          onChange={(event) => setRole(event.target.value as Role)}
+        >
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
       </label>
       <button className="primary-button" disabled={submitting}>
-        {submitting ? 'Creating...' : 'Create broker'}
+        {submitting ? "Creating..." : "Create broker"}
       </button>
       {message && <p className="form-note">{message}</p>}
     </form>
-  )
+  );
 }
 
-function PropertyImport({ session, onImported }: { session: Session; onImported: () => void }) {
-  const [file, setFile] = useState<File | null>(null)
-  const [message, setMessage] = useState('')
-  const [uploading, setUploading] = useState(false)
+function PropertyImport({
+  session,
+  onImported,
+}: {
+  session: Session;
+  onImported: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   function upload() {
     if (!file) {
-      setMessage('Choose a JSON file first.')
-      return
+      setMessage("Choose a JSON file first.");
+      return;
     }
 
-    const body = new FormData()
-    body.append('file', file)
-    setUploading(true)
-    setMessage('')
+    const body = new FormData();
+    body.append("file", file);
+    setUploading(true);
+    setMessage("");
 
     fetch(`${apiBase}/tenants/${session.broker.tenant_id}/properties/import`, {
-      method: 'POST',
+      method: "POST",
       headers: { Authorization: `Bearer ${session.token}` },
       body,
     })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error(await responseError(response))
+          throw new Error(await responseError(response));
         }
-        setMessage('Properties imported.')
-        setFile(null)
-        onImported()
+        setMessage("Properties imported.");
+        setFile(null);
+        onImported();
       })
       .catch((err: Error) => setMessage(err.message))
-      .finally(() => setUploading(false))
+      .finally(() => setUploading(false));
   }
 
   return (
@@ -690,37 +907,49 @@ function PropertyImport({ session, onImported }: { session: Session; onImported:
         onChange={(event) => setFile(event.target.files?.[0] ?? null)}
       />
       <button className="primary-button" onClick={upload} disabled={uploading}>
-        {uploading ? 'Uploading...' : 'Import properties'}
+        {uploading ? "Uploading..." : "Import properties"}
       </button>
       {message && <span>{message}</span>}
     </div>
-  )
+  );
 }
 
-function Metric({ label, value, trend }: { label: string; value: string; trend: string }) {
+function Metric({
+  label,
+  value,
+  trend,
+}: {
+  label: string;
+  value: string;
+  trend: string;
+}) {
   return (
     <article className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{trend}</small>
     </article>
-  )
+  );
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <p className="empty-state">{message}</p>
+  return <p className="empty-state">{message}</p>;
 }
 
 function LeadDescriptionDetails({ lead }: { lead: Lead }) {
-  const description = leadDescription(lead)
+  const description = leadDescription(lead);
 
-  if (!description.summary && !description.intent && description.qualifications.length === 0) {
+  if (
+    !description.summary &&
+    !description.intent &&
+    description.qualifications.length === 0
+  ) {
     return (
       <div>
         <dt>Description</dt>
         <dd>No description</dd>
       </div>
-    )
+    );
   }
 
   return (
@@ -753,29 +982,34 @@ function LeadDescriptionDetails({ lead }: { lead: Lead }) {
         </div>
       )}
     </>
-  )
+  );
 }
 
 function CallCard({ call, leads }: { call: Call; leads: Lead[] }) {
-  const outcome = callOutcome(call)
-  const lead = leads.find((item) => item.id === numberValue(call.lead_id))
-  const rawSummary = textValue(call.summary)
-  const summary = callSummaryText(rawSummary)
-  const details = [...parseCallDetails(textValue(call.details)), ...parseStructuredCallSummary(rawSummary)]
-  const transcript = textValue(call.transcript)
+  const outcome = callOutcome(call);
+  const lead = leads.find((item) => item.id === numberValue(call.lead_id));
+  const rawSummary = textValue(call.summary);
+  const summary = callSummaryText(rawSummary);
+  const details = [
+    ...parseCallDetails(textValue(call.details)),
+    ...parseStructuredCallSummary(rawSummary),
+  ];
+  const transcript = textValue(call.transcript);
 
   return (
     <article className="call-card">
       <div className="call-card-main">
         <div className="call-card-title">
-          <span className={`badge ${callOutcomeClass(outcome)}`}>{callOutcomeLabels[outcome]}</span>
-          <strong>{summary || 'No call summary'}</strong>
+          <span className={`badge ${callOutcomeClass(outcome)}`}>
+            {callOutcomeLabels[outcome]}
+          </span>
+          <strong>{summary || "No call summary"}</strong>
           <small>{dateLabel(call.created_at)}</small>
         </div>
         <div className="call-meta">
           <span>{callSentiment(call)}</span>
           <span>{durationLabel(call.duration_secs)}</span>
-          <span>{lead?.phone ?? 'No linked lead'}</span>
+          <span>{lead?.phone ?? "No linked lead"}</span>
         </div>
       </div>
 
@@ -797,28 +1031,41 @@ function CallCard({ call, leads }: { call: Call; leads: Lead[] }) {
         </details>
       )}
     </article>
-  )
+  );
 }
 
-function AppointmentCard({ appointment, leads }: { appointment: Appointment; leads: Lead[] }) {
-  const status = appointmentStatus(appointment)
-  const lead = leads.find((item) => item.id === appointment.lead_id)
-  const appointmentDate = dateValue(appointment.appointment_date)
+function AppointmentCard({
+  appointment,
+  leads,
+}: {
+  appointment: Appointment;
+  leads: Lead[];
+}) {
+  const status = appointmentStatus(appointment);
+  const lead = leads.find((item) => item.id === appointment.lead_id);
+  const appointmentDate = dateValue(appointment.appointment_date);
 
   return (
     <article className="appointment-row">
       <div>
-        <span className={`badge ${appointmentStatusClass(status)}`}>{appointmentStatusLabels[status]}</span>
-        <strong>{appointment.title || 'Property viewing'}</strong>
+        <span className={`badge ${appointmentStatusClass(status)}`}>
+          {appointmentStatusLabels[status]}
+        </span>
+        <strong>{appointment.title || "Property viewing"}</strong>
         <small>{lead?.phone ?? `Lead #${appointment.lead_id}`}</small>
       </div>
       <div className="appointment-time">
-        <strong>{appointment.appointment_day || appointmentDayLabel(appointmentDate)}</strong>
-        <span>{appointmentDateLabel(appointmentDate)} at {appointmentTimeLabel(appointment.appointment_time)}</span>
+        <strong>
+          {appointment.appointment_day || appointmentDayLabel(appointmentDate)}
+        </strong>
+        <span>
+          {appointmentDateLabel(appointmentDate)} at{" "}
+          {appointmentTimeLabel(appointment.appointment_time)}
+        </span>
       </div>
-      <p>{textValue(appointment.notes) || 'No notes'}</p>
+      <p>{textValue(appointment.notes) || "No notes"}</p>
     </article>
-  )
+  );
 }
 
 async function reload(
@@ -833,18 +1080,39 @@ async function reload(
   setError: (value: string) => void,
   setSelectedLeadID?: (value: number | null) => void,
 ) {
-  setLoadState('loading')
-  setError('')
+  setLoadState("loading");
+  setError("");
   try {
-    const [nextLeads, nextProperties, nextCalls, nextAppointments, nextBrokers] = await Promise.all([
-      apiGet<Lead[]>(`/tenants/${session.broker.tenant_id}/leads`, session.token),
-      apiGet<Property[]>(`/tenants/${session.broker.tenant_id}/properties`, session.token),
-      apiGet<Call[]>(`/tenants/${session.broker.tenant_id}/calls`, session.token),
-      apiGet<Appointment[]>(`/tenants/${session.broker.tenant_id}/appointments`, session.token),
+    const [
+      nextLeads,
+      nextProperties,
+      nextCalls,
+      nextAppointments,
+      nextBrokers,
+    ] = await Promise.all([
+      apiGet<Lead[]>(
+        `/tenants/${session.broker.tenant_id}/leads`,
+        session.token,
+      ),
+      apiGet<Property[]>(
+        `/tenants/${session.broker.tenant_id}/properties`,
+        session.token,
+      ),
+      apiGet<Call[]>(
+        `/tenants/${session.broker.tenant_id}/calls`,
+        session.token,
+      ),
+      apiGet<Appointment[]>(
+        `/tenants/${session.broker.tenant_id}/appointments`,
+        session.token,
+      ),
       isAdmin
-        ? apiGet<Broker[]>(`/tenants/${session.broker.tenant_id}/brokers`, session.token)
+        ? apiGet<Broker[]>(
+            `/tenants/${session.broker.tenant_id}/brokers`,
+            session.token,
+          )
         : Promise.resolve([]),
-    ])
+    ]);
     applyDashboardData(
       nextLeads,
       nextProperties,
@@ -857,11 +1125,11 @@ async function reload(
       setCalls,
       setAppointments,
       setSelectedLeadID,
-    )
-    setLoadState('ready')
+    );
+    setLoadState("ready");
   } catch (err) {
-    setError(err instanceof Error ? err.message : 'Failed to reload data')
-    setLoadState('error')
+    setError(err instanceof Error ? err.message : "Failed to reload data");
+    setLoadState("error");
   }
 }
 
@@ -878,393 +1146,477 @@ function applyDashboardData(
   setAppointments: (value: Appointment[]) => void,
   setSelectedLeadID?: (value: number | null) => void,
 ) {
-  const safeLeads = asArray(nextLeads)
-  setLeads(safeLeads)
-  setProperties(asArray(nextProperties))
-  setBrokers(asArray(nextBrokers))
-  setCalls(asArray(nextCalls))
-  setAppointments(asArray(nextAppointments))
-  setSelectedLeadID?.(safeLeads[0]?.id ?? null)
+  const safeLeads = asArray(nextLeads);
+  setLeads(safeLeads);
+  setProperties(asArray(nextProperties));
+  setBrokers(asArray(nextBrokers));
+  setCalls(asArray(nextCalls));
+  setAppointments(asArray(nextAppointments));
+  setSelectedLeadID?.(safeLeads[0]?.id ?? null);
 }
 
 function asArray<T>(value: T[] | null | undefined): T[] {
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? value : [];
 }
 
 function pageFromHash(hash: string): Page {
-  const page = hash.replace('#', '').toLowerCase()
-  return ['leads', 'appointments', 'properties', 'calls', 'brokers'].includes(page) ? page as Page : 'dashboard'
+  const page = hash.replace("#", "").toLowerCase();
+  return ["leads", "appointments", "properties", "calls", "brokers"].includes(
+    page,
+  )
+    ? (page as Page)
+    : "dashboard";
 }
 
 async function apiGet<T>(path: string, token: string): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
+  });
   if (!response.ok) {
-    throw new Error(await responseError(response))
+    throw new Error(await responseError(response));
   }
-  return response.json() as Promise<T>
+  return response.json() as Promise<T>;
 }
 
-async function apiPost<T>(path: string, body: unknown, token?: string): Promise<T> {
+async function apiPost<T>(
+  path: string,
+  body: unknown,
+  token?: string,
+): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    throw new Error(await responseError(response))
+    throw new Error(await responseError(response));
   }
-  return response.json() as Promise<T>
+  return response.json() as Promise<T>;
 }
 
 async function responseError(response: Response) {
-  const fallback = `Request failed with ${response.status}`
+  const fallback = `Request failed with ${response.status}`;
   try {
-    const body = await response.json()
-    return body.error ?? body.message ?? fallback
+    const body = await response.json();
+    return body.error ?? body.message ?? fallback;
   } catch {
-    return fallback
+    return fallback;
   }
 }
 
 function loadSession(): Session | null {
-  const stored = localStorage.getItem(sessionKey)
+  const stored = localStorage.getItem(sessionKey);
   if (!stored) {
-    return null
+    return null;
   }
   try {
-    return JSON.parse(stored) as Session
+    return JSON.parse(stored) as Session;
   } catch {
-    localStorage.removeItem(sessionKey)
-    return null
+    localStorage.removeItem(sessionKey);
+    return null;
   }
 }
 
 function textValue(value: NullableText | string | null | undefined) {
   if (!value) {
-    return ''
+    return "";
   }
-  if (typeof value === 'string') {
-    return value
+  if (typeof value === "string") {
+    return value;
   }
-  const valid = value.Valid ?? value.valid ?? true
-  return valid ? value.String ?? value.string ?? '' : ''
+  const valid = value.Valid ?? value.valid ?? true;
+  return valid ? (value.String ?? value.string ?? "") : "";
 }
 
 function leadDescription(lead: Lead) {
-  return parseLeadDescription(textValue(lead.description))
+  return parseLeadDescription(textValue(lead.description));
 }
 
 function parseLeadDescription(value: string): {
-  summary: string
-  intent: string
-  qualifications: Array<[string, string]>
+  summary: string;
+  intent: string;
+  qualifications: Array<[string, string]>;
 } {
   const lines = value
-    .split('\n')
+    .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter(Boolean);
 
-  const qualificationLine = lines.find((line) => line.startsWith('Qualification:'))
-  const intentLine = lines.find((line) => line.startsWith('Intent:'))
+  const qualificationLine = lines.find((line) =>
+    line.startsWith("Qualification:"),
+  );
+  const intentLine = lines.find((line) => line.startsWith("Intent:"));
   const summaryLines = lines.filter(
-    (line) => !line.startsWith('Qualification:') && !line.startsWith('Intent:') && !isGeneratedLeadSummary(line),
-  )
+    (line) =>
+      !line.startsWith("Qualification:") &&
+      !line.startsWith("Intent:") &&
+      !isGeneratedLeadSummary(line),
+  );
 
   return {
-    summary: summaryLines.join(' ').trim(),
-    intent: intentLine?.replace('Intent:', '').trim() ?? '',
-    qualifications: parseQualification(qualificationLine?.replace('Qualification:', '').trim() ?? ''),
-  }
+    summary: summaryLines.join(" ").trim(),
+    intent: intentLine?.replace("Intent:", "").trim() ?? "",
+    qualifications: parseQualification(
+      qualificationLine?.replace("Qualification:", "").trim() ?? "",
+    ),
+  };
 }
 
 function isGeneratedLeadSummary(value: string) {
-  return /^(Call|Follow Up|Qualified|Closed|Unqualified|No Answer)\s+(from|call with)\s+\+?[0-9][0-9\s-]{6,}\.?$/i.test(value)
+  return /^(Call|Follow Up|Qualified|Closed|Unqualified|No Answer)\s+(from|call with)\s+\+?[0-9][0-9\s-]{6,}\.?$/i.test(
+    value,
+  );
 }
 
 function parseQualification(value: string): Array<[string, string]> {
   if (!value) {
-    return []
+    return [];
   }
 
   try {
-    const parsed = JSON.parse(value) as Record<string, unknown>
+    const parsed = JSON.parse(value) as Record<string, unknown>;
     return Object.entries(parsed)
-      .filter(([, item]) => item !== null && item !== undefined && item !== '' && String(item).toLowerCase() !== 'not captured')
-      .map(([key, item]) => [key, String(item)])
+      .filter(
+        ([, item]) =>
+          item !== null &&
+          item !== undefined &&
+          item !== "" &&
+          String(item).toLowerCase() !== "not captured",
+      )
+      .map(([key, item]) => [key, String(item)]);
   } catch {
-    return value.toLowerCase() === 'not captured' ? [] : [['details', value]]
+    return value.toLowerCase() === "not captured" ? [] : [["details", value]];
   }
 }
 
 function parseCallDetails(value: string): Array<[string, string]> {
   return value
-    .split('\n')
+    .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const separatorIndex = line.indexOf(':')
+      const separatorIndex = line.indexOf(":");
       if (separatorIndex === -1) {
-        return ['details', line] as [string, string]
+        return ["details", line] as [string, string];
       }
-      return [line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1).trim()] as [string, string]
+      return [
+        line.slice(0, separatorIndex).trim(),
+        line.slice(separatorIndex + 1).trim(),
+      ] as [string, string];
     })
-    .filter(([, item]) => item !== '')
+    .filter(([, item]) => item !== "");
 }
 
 function parseStructuredCallSummary(value: string): Array<[string, string]> {
-  const labels = /(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:/gi
-  const matches = [...value.matchAll(labels)]
+  const labels =
+    /(phone number|phone|budget|rooms|location|property type|sentiment|call outcome)\s*:/gi;
+  const matches = [...value.matchAll(labels)];
   if (matches.length === 0) {
-    return []
+    return [];
   }
 
   return matches
     .map((match, index) => {
-      const start = (match.index ?? 0) + match[0].length
-      const end = matches[index + 1]?.index ?? value.length
-      return [normalizeDetailKey(match[1]), value.slice(start, end).trim()] as [string, string]
+      const start = (match.index ?? 0) + match[0].length;
+      const end = matches[index + 1]?.index ?? value.length;
+      return [normalizeDetailKey(match[1]), value.slice(start, end).trim()] as [
+        string,
+        string,
+      ];
     })
-    .filter(([, item]) => item !== '' && !item.toLowerCase().startsWith('assistant:'))
+    .filter(
+      ([, item]) => item !== "" && !item.toLowerCase().startsWith("assistant:"),
+    );
 }
 
 function callSummaryText(value: string) {
-  const fields = Object.fromEntries(parseStructuredCallSummary(value))
+  const fields = Object.fromEntries(parseStructuredCallSummary(value));
   if (Object.keys(fields).length === 0) {
-    return value.replace(/\s*Sentiment\s+(positive|negative|neutral)\.\s*$/i, '').trim()
+    return value
+      .replace(/\s*Sentiment\s+(positive|negative|neutral)\.\s*$/i, "")
+      .trim();
   }
 
-  const outcome = fields.call_outcome ? humanizeValue(fields.call_outcome) : 'Call'
-  const phone = fields.phone_number ?? fields.phone
-  return phone ? `${outcome} from ${phone}` : outcome
+  const outcome = fields.call_outcome
+    ? humanizeValue(fields.call_outcome)
+    : "Call";
+  const phone = fields.phone_number ?? fields.phone;
+  return phone ? `${outcome} from ${phone}` : outcome;
 }
 
 function normalizeDetailKey(value: string) {
-  return value.trim().toLowerCase().replaceAll(' ', '_')
+  return value.trim().toLowerCase().replaceAll(" ", "_");
 }
 
 function formatCallDetailValue(value: string) {
-  if (!value.startsWith('{')) {
-    return humanizeValue(value)
+  if (!value.startsWith("{")) {
+    return humanizeValue(value);
   }
 
   try {
-    const parsed = JSON.parse(value) as Record<string, unknown>
+    const parsed = JSON.parse(value) as Record<string, unknown>;
     return Object.entries(parsed)
-      .filter(([, item]) => item !== null && item !== undefined && item !== '')
+      .filter(([, item]) => item !== null && item !== undefined && item !== "")
       .map(([key, item]) => `${humanizeValue(key)}: ${String(item)}`)
-      .join(', ')
+      .join(", ");
   } catch {
-    return value
+    return value;
   }
 }
 
 function humanizeValue(value: string) {
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function enumValue<T extends string>(value: NullableValue<T> | T | null | undefined, fallback: T, keys: string[]) {
+function enumValue<T extends string>(
+  value: NullableValue<T> | T | null | undefined,
+  fallback: T,
+  keys: string[],
+) {
   if (!value) {
-    return fallback
+    return fallback;
   }
-  if (typeof value === 'string') {
-    return value
+  if (typeof value === "string") {
+    return value;
   }
-  const valid = value.Valid ?? value.valid ?? true
+  const valid = value.Valid ?? value.valid ?? true;
   if (!valid) {
-    return fallback
+    return fallback;
   }
 
   for (const key of keys) {
-    const nextValue = value[key]
-    if (typeof nextValue === 'string' && nextValue !== '') {
-      return nextValue as T
+    const nextValue = value[key];
+    if (typeof nextValue === "string" && nextValue !== "") {
+      return nextValue as T;
     }
   }
 
-  return fallback
+  return fallback;
 }
 
 function leadStatus(lead: Lead): LeadStatus {
-  return enumValue(lead.status, 'Follow_Up', ['lead_status', 'LeadStatus', 'status'])
+  return enumValue(lead.status, "Follow_Up", [
+    "lead_status",
+    "LeadStatus",
+    "status",
+  ]);
 }
 
 function propertyStatus(property: Property): PropertyStatus {
-  return enumChoice(property.status, ['available', 'sold', 'rented'], 'available')
+  return enumChoice(
+    property.status,
+    ["available", "sold", "rented"],
+    "available",
+  );
 }
 
 function propertyType(property: Property): string {
-  return enumValue(property.type, 'شقة', ['property_type', 'PropertyType', 'type'])
+  return enumValue(property.type, "شقة", [
+    "property_type",
+    "PropertyType",
+    "type",
+  ]);
 }
 
 function callOutcome(call: Call): CallOutcome {
-  return enumChoice(call.outcome, ['follow_up', 'qualified', 'closed', 'unqualified', 'no_answer'], 'follow_up')
+  return enumChoice(
+    call.outcome,
+    ["follow_up", "qualified", "closed", "unqualified", "no_answer"],
+    "follow_up",
+  );
 }
 
 function appointmentStatus(appointment: Appointment): AppointmentStatus {
-  return enumChoice(appointment.status, ['scheduled', 'completed', 'canceled', 'no_show'], 'scheduled')
+  return enumChoice(
+    appointment.status,
+    ["scheduled", "completed", "canceled", "no_show"],
+    "scheduled",
+  );
 }
 
 function callSentiment(call: Call): string {
-  return humanizeValue(enumChoice(call.sentiment, ['positive', 'negative', 'neutral'], 'neutral'))
+  return humanizeValue(
+    enumChoice(call.sentiment, ["positive", "negative", "neutral"], "neutral"),
+  );
 }
 
 function callOutcomeClass(outcome: CallOutcome) {
-  return outcome === 'follow_up' ? 'follow_up' : outcome
+  return outcome === "follow_up" ? "follow_up" : outcome;
 }
 
 function appointmentStatusClass(status: AppointmentStatus) {
-  return status === 'no_show' ? 'no_answer' : status
+  return status === "no_show" ? "no_answer" : status;
 }
 
-function enumChoice<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  if (typeof value === 'string') {
-    return normalizeChoice(value, allowed, fallback)
+function enumChoice<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  if (typeof value === "string") {
+    return normalizeChoice(value, allowed, fallback);
   }
-  if (!value || typeof value !== 'object') {
-    return fallback
+  if (!value || typeof value !== "object") {
+    return fallback;
   }
 
-  const record = value as Record<string, unknown>
-  const valid = record.Valid ?? record.valid ?? true
+  const record = value as Record<string, unknown>;
+  const valid = record.Valid ?? record.valid ?? true;
   if (valid === false) {
-    return fallback
+    return fallback;
   }
 
   for (const item of Object.values(record)) {
-    if (typeof item === 'string') {
-      const choice = normalizeChoice(item, allowed, fallback)
-      if (choice !== fallback || item.toLowerCase() === fallback.toLowerCase()) {
-        return choice
+    if (typeof item === "string") {
+      const choice = normalizeChoice(item, allowed, fallback);
+      if (
+        choice !== fallback ||
+        item.toLowerCase() === fallback.toLowerCase()
+      ) {
+        return choice;
       }
     }
   }
 
-  return fallback
+  return fallback;
 }
 
-function normalizeChoice<T extends string>(value: string, allowed: readonly T[], fallback: T): T {
-  const normalized = value.trim().toLowerCase()
-  return allowed.find((item) => item.toLowerCase() === normalized) ?? fallback
+function normalizeChoice<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const normalized = value.trim().toLowerCase();
+  return allowed.find((item) => item.toLowerCase() === normalized) ?? fallback;
 }
 
 function leadStatusClass(status: LeadStatus) {
-  return status === 'Follow_Up' ? 'follow_up' : status
+  return status === "Follow_Up" ? "follow_up" : status;
 }
 
 function valueLabel(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return 'Not set'
+  if (value === null || value === undefined || value === "") {
+    return "Not set";
   }
-  return String(value)
+  return String(value);
 }
 
 function priceLabel(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return 'No price'
+  if (value === null || value === undefined || value === "") {
+    return "No price";
   }
-  return valueLabel(value)
+  return valueLabel(value);
 }
 
 function areaLabel(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return 'No area'
+  if (value === null || value === undefined || value === "") {
+    return "No area";
   }
-  return `${valueLabel(value)} sqm`
+  return `${valueLabel(value)} sqm`;
 }
 
 function numberValue(value: NullableNumber | number | null | undefined) {
-  if (typeof value === 'number') {
-    return value
+  if (typeof value === "number") {
+    return value;
   }
   if (!value) {
-    return 0
+    return 0;
   }
-  const valid = value.Valid ?? value.valid ?? true
+  const valid = value.Valid ?? value.valid ?? true;
   if (!valid) {
-    return 0
+    return 0;
   }
-  return value.Int32 ?? value.Int64 ?? value.int32 ?? value.int64 ?? 0
+  return value.Int32 ?? value.Int64 ?? value.int32 ?? value.int64 ?? 0;
 }
 
 function durationLabel(value: NullableNumber | number | null | undefined) {
-  const seconds = numberValue(value)
+  const seconds = numberValue(value);
   if (seconds <= 0) {
-    return 'No duration'
+    return "No duration";
   }
   if (seconds < 60) {
-    return `${seconds}s`
+    return `${seconds}s`;
   }
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds === 0
+    ? `${minutes}m`
+    : `${minutes}m ${remainingSeconds}s`;
 }
 
 function dateValue(value: unknown) {
   if (!value) {
-    return ''
+    return "";
   }
-  if (typeof value === 'string') {
-    return value
+  if (typeof value === "string") {
+    return value;
   }
-  if (typeof value === 'object') {
-    const date = value as NullableDate
-    const valid = date.Valid ?? date.valid ?? true
-    return valid ? date.Time ?? date.time ?? '' : ''
+  if (typeof value === "object") {
+    const date = value as NullableDate;
+    const valid = date.Valid ?? date.valid ?? true;
+    return valid ? (date.Time ?? date.time ?? "") : "";
   }
-  return ''
+  return "";
 }
 
 function dateLabel(value?: unknown) {
-  const rawValue = dateValue(value)
+  const rawValue = dateValue(value);
   if (!rawValue) {
-    return 'No date'
+    return "No date";
   }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(rawValue))
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(rawValue));
 }
 
 function appointmentDayLabel(value?: unknown) {
-  const rawValue = dateValue(value)
+  const rawValue = dateValue(value);
   if (!rawValue) {
-    return 'No day'
+    return "No day";
   }
-  return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(new Date(rawValue))
+  return new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(
+    new Date(rawValue),
+  );
 }
 
 function appointmentDateLabel(value?: unknown) {
-  const rawValue = dateValue(value)
+  const rawValue = dateValue(value);
   if (!rawValue) {
-    return 'No date'
+    return "No date";
   }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(rawValue))
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+    new Date(rawValue),
+  );
 }
 
 function appointmentTimeLabel(value?: unknown) {
   if (!value) {
-    return 'No time'
+    return "No time";
   }
-  if (typeof value === 'string') {
-    return value
+  if (typeof value === "string") {
+    return value;
   }
-  if (typeof value === 'object') {
-    const timeValue = value as NullableTime
-    const valid = timeValue.Valid ?? timeValue.valid ?? true
+  if (typeof value === "object") {
+    const timeValue = value as NullableTime;
+    const valid = timeValue.Valid ?? timeValue.valid ?? true;
     if (!valid) {
-      return 'No time'
+      return "No time";
     }
-    const microseconds = timeValue.Microseconds ?? timeValue.microseconds
-    if (typeof microseconds === 'number') {
-      const totalMinutes = Math.floor(microseconds / 60000000)
-      const hours = Math.floor(totalMinutes / 60)
-      const minutes = totalMinutes % 60
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    const microseconds = timeValue.Microseconds ?? timeValue.microseconds;
+    if (typeof microseconds === "number") {
+      const totalMinutes = Math.floor(microseconds / 60000000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
     }
   }
-  return 'No time'
+  return "No time";
 }
 
-export default App
+export default App;
