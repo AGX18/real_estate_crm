@@ -2,11 +2,14 @@ package properties
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	db "github.com/AGX18/real_estate_crm/internal/db/sqlc"
 	"github.com/AGX18/real_estate_crm/internal/httpx"
@@ -19,10 +22,19 @@ import (
 const (
 	embeddingDimensions = 1536
 	maxImportFileSize   = 10 << 20
+	importDedupeTTL     = 10 * time.Minute
 )
 
 type Handler struct {
-	service *Service
+	service  *Service
+	importMu sync.Mutex
+	imports  map[string]*importEntry
+}
+
+type importEntry struct {
+	done   chan struct{}
+	status int
+	body   any
 }
 
 type propertyRequest struct {
@@ -109,7 +121,10 @@ type importRequest struct {
 }
 
 func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+	return &Handler{
+		service: service,
+		imports: make(map[string]*importEntry),
+	}
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -205,26 +220,34 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.createMany(w, r, tenantID, properties)
+	createParams, ok := h.createManyParams(w, tenantID, properties)
+	if !ok {
+		return
+	}
+
+	key := importKey(tenantID, data)
+	entry, owner := h.beginImport(key)
+	if !owner {
+		h.writeImportResult(w, r, entry)
+		return
+	}
+
+	results, err := h.service.CreateMany(r.Context(), createParams)
+	if err != nil {
+		body := map[string]string{"error": "failed to create properties"}
+		h.finishImport(key, entry, http.StatusInternalServerError, body)
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create properties", err)
+		return
+	}
+
+	h.finishImport(key, entry, http.StatusCreated, results)
+	httpx.WriteJSON(w, http.StatusCreated, results)
 }
 
 func (h *Handler) createMany(w http.ResponseWriter, r *http.Request, tenantID pgtype.UUID, body []propertyRequest) {
-	properties := make([]CreateParams, 0, len(body))
-	for _, item := range body {
-		params, content, err := createParams(tenantID, item)
-		if err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		if err := validateEmbedding(item.Embedding); err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		properties = append(properties, CreateParams{
-			Property:  params,
-			Content:   content,
-			Embedding: item.Embedding,
-		})
+	properties, ok := h.createManyParams(w, tenantID, body)
+	if !ok {
+		return
 	}
 
 	results, err := h.service.CreateMany(r.Context(), properties)
@@ -234,6 +257,28 @@ func (h *Handler) createMany(w http.ResponseWriter, r *http.Request, tenantID pg
 	}
 
 	httpx.WriteJSON(w, http.StatusCreated, results)
+}
+
+func (h *Handler) createManyParams(w http.ResponseWriter, tenantID pgtype.UUID, body []propertyRequest) ([]CreateParams, bool) {
+	properties := make([]CreateParams, 0, len(body))
+	for _, item := range body {
+		params, content, err := createParams(tenantID, item)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return nil, false
+		}
+		if err := validateEmbedding(item.Embedding); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return nil, false
+		}
+		properties = append(properties, CreateParams{
+			Property:  params,
+			Content:   content,
+			Embedding: item.Embedding,
+		})
+	}
+
+	return properties, true
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
@@ -547,6 +592,61 @@ func validateEmbedding(embedding []float32) error {
 		return fmt.Errorf("embedding must contain %d dimensions", embeddingDimensions)
 	}
 	return nil
+}
+
+func importKey(tenantID pgtype.UUID, data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x:%x", tenantID.Bytes, sum)
+}
+
+func (h *Handler) beginImport(key string) (*importEntry, bool) {
+	h.importMu.Lock()
+	defer h.importMu.Unlock()
+
+	if h.imports == nil {
+		h.imports = make(map[string]*importEntry)
+	}
+	if entry, ok := h.imports[key]; ok {
+		return entry, false
+	}
+
+	entry := &importEntry{done: make(chan struct{})}
+	h.imports[key] = entry
+	return entry, true
+}
+
+func (h *Handler) finishImport(key string, entry *importEntry, status int, body any) {
+	h.importMu.Lock()
+	entry.status = status
+	entry.body = body
+	close(entry.done)
+	if status >= http.StatusBadRequest {
+		delete(h.imports, key)
+		h.importMu.Unlock()
+		return
+	}
+	h.importMu.Unlock()
+
+	time.AfterFunc(importDedupeTTL, func() {
+		h.importMu.Lock()
+		defer h.importMu.Unlock()
+		if h.imports[key] == entry {
+			delete(h.imports, key)
+		}
+	})
+}
+
+func (h *Handler) writeImportResult(w http.ResponseWriter, r *http.Request, entry *importEntry) {
+	select {
+	case <-entry.done:
+		status := entry.status
+		if status == http.StatusCreated {
+			status = http.StatusOK
+		}
+		httpx.WriteJSON(w, status, entry.body)
+	case <-r.Context().Done():
+		httpx.WriteError(w, http.StatusRequestTimeout, "import request canceled")
+	}
 }
 
 func decodeImportProperties(data []byte) ([]propertyRequest, error) {

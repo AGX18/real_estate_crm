@@ -175,6 +175,49 @@ func TestImportPropertiesArrayFile(t *testing.T) {
 	}
 }
 
+func TestImportPropertiesSkipsDuplicateFile(t *testing.T) {
+	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 2, Bathrooms: 2}}
+	s := newTestServer(mock)
+	r := newPropertyTestRouter(s)
+
+	content := `[
+		{
+			"description":"Apartment one",
+			"price":"2500000.00",
+			"location":"New Cairo",
+			"area_sqm":"120",
+			"type":"شقة",
+			"city":"Cairo",
+			"governorate":"Cairo",
+			"bedrooms":2,
+			"bathrooms":2,
+			"status":"available"
+		}
+	]`
+	body, contentType := propertiesImportBody(t, "properties.json", content)
+	req := httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected %d got %d", http.StatusCreated, w.Code)
+	}
+
+	body, contentType = propertiesImportBody(t, "properties.json", content)
+	req = httptest.NewRequest(http.MethodPost, "/tenants/"+testTenantID+"/properties/import", body)
+	req.Header.Set("Content-Type", contentType)
+	w = httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected duplicate import to return %d got %d", http.StatusOK, w.Code)
+	}
+	if mock.createPropertyCalls != 1 {
+		t.Fatalf("expected duplicate import to create 1 property got %d", mock.createPropertyCalls)
+	}
+}
+
 func TestImportPropertiesWrappedFile(t *testing.T) {
 	mock := &mockQueries{property: db.Property{ID: 1, Bedrooms: 2, Bathrooms: 2}}
 	s := newTestServer(mock)

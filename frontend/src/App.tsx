@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import heroImage from "./assets/hero.png";
 import "./App.css";
@@ -868,8 +868,13 @@ function PropertyImport({
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const uploadInFlight = useRef(false);
 
   function upload() {
+    if (uploadInFlight.current) {
+      return;
+    }
+
     if (!file) {
       setMessage("Choose a JSON file first.");
       return;
@@ -877,6 +882,7 @@ function PropertyImport({
 
     const body = new FormData();
     body.append("file", file);
+    uploadInFlight.current = true;
     setUploading(true);
     setMessage("");
 
@@ -894,7 +900,10 @@ function PropertyImport({
         onImported();
       })
       .catch((err: Error) => setMessage(err.message))
-      .finally(() => setUploading(false));
+      .finally(() => {
+        uploadInFlight.current = false;
+        setUploading(false);
+      });
   }
 
   return (
